@@ -241,8 +241,8 @@ def generate_sullair_pdf(
     logo_elem = ""
     if logo_path and os.path.exists(logo_path):
         try:
-            # Proporción 4.16:1 para ajuste perfecto y limpio dentro de la celda
-            logo_elem = RLImage(logo_path, width=50 * mm, height=12 * mm)
+            # Proporción exacta 550x130 (4.23:1) con márgenes limpios y sin recortes
+            logo_elem = RLImage(logo_path, width=48 * mm, height=11.3 * mm)
         except Exception:
             logo_elem = Paragraph("<b>SULLAIR ARGENTINA</b>", title_style)
     else:
@@ -261,7 +261,7 @@ def generate_sullair_pdf(
     ]
 
     header_table_data = [[logo_elem, center_hdr, right_hdr]]
-    header_table = Table(header_table_data, colWidths=[62 * mm, 83 * mm, 45 * mm], rowHeights=[16 * mm])
+    header_table = Table(header_table_data, colWidths=[60 * mm, 85 * mm, 45 * mm], rowHeights=[16 * mm])
     header_table.setStyle(TableStyle([
         ('BOX', (0, 0), (-1, -1), 1.0, colors.black),
         ('INNERGRID', (0, 0), (-1, -1), 0.8, colors.black),

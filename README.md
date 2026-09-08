@@ -38,13 +38,12 @@ Sistema integral de gestión de inspecciones vehiculares mensuales para el equip
 
 ## 👥 Cuentas de Demostración Preconfiguradas
 
-| Rol | Correo Electrónico | Contraseña | Vehículo Asignado |
-| :--- | :--- | :--- | :--- |
-| **Comercial** | `comercial@sullair.com.ar` | `comercial` | INT-104 (Toyota Hilux) |
-| **Comercial 2** | `lucas.gomez@sullair.com.ar` | `lucas` | INT-108 (Ford Ranger) |
+| **Administrador (Federico Cendra)** | `fcendra@sullair.com.ar` (`fcendra`) | `C4n1ch3r1426` | Todos los accesos |
+| **Comercial (Lucas Toto)** | `ltoto@sullair.com.ar` (`ltoto`) | `esmeralda26` | INT-104 (Toyota Hilux) |
+| **Comercial (Demo)** | `comercial@sullair.com.ar` | `comercial` | INT-104 (Toyota Hilux) |
 | **Gestor CASS** | `cass@sullair.com.ar` | `cass` | General / Auditoría |
 | **Responsable Flota** | `flota@sullair.com.ar` | `flota` | General / Flota |
-| **Administrador** | `admin@sullair.com.ar` | `admin` | Todos los accesos |
+| **Administrador (Demo)** | `admin@sullair.com.ar` | `admin` | Todos los accesos |
 
 ---
 

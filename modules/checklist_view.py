@@ -13,7 +13,6 @@ from modules.pdf_generator import SECTIONS_STRUCTURE, generate_sullair_pdf
 
 def sanitize_filename(filename: str) -> str:
     """Limpia el nombre de archivo para evitar caracteres inválidos en descargas del navegador."""
-    # Reemplazar espacios y caracteres no alfanuméricos excepto guiones y puntos
     clean = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', filename)
     clean = re.sub(r'_+', '_', clean)
     if not clean.lower().endswith(".pdf"):
@@ -37,48 +36,28 @@ def get_pdf_preview_image(pdf_bytes: bytes) -> bytes:
 
 def render_pdf_download_block(pdf_bytes: bytes, filename: str, saved_path: str = None, key_prefix: str = "pdf", show_preview: bool = True):
     """
-    Renderiza un bloque robusto y garantizado de descarga, apertura y previsualización de PDF.
-    Usa tanto enlace directo HTML5 base64 con extensión .pdf forzada, como botón nativo de Streamlit
-    y apertura directa en Windows (os.startfile).
+    Renderiza un bloque robusto de descarga y previsualización de PDF 100% compatible en web, móviles y desktop.
     """
     clean_name = sanitize_filename(filename)
     b64_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
 
-    col_btn1, col_btn2 = st.columns([1, 1])
-    with col_btn1:
-        # Enlace HTML5 directo - Garantiza la extensión .pdf en Chrome / Edge
-        html_btn = f"""
+    # Botón HTML5 directo en Base64 con atributo download forzado (garantiza la extensión .pdf en Chrome/Safari/Edge)
+    html_btn = f"""
+    <div style="text-align: center; margin: 10px 0;">
         <a href="data:application/pdf;base64,{b64_pdf}" download="{clean_name}" target="_blank"
-           style="display: flex; align-items: center; justify-content: center; width: 100%;
-                  background-color: #00853E; color: #FFFFFF !important; padding: 10px 18px; text-decoration: none !important;
-                  font-weight: 700; font-size: 0.95rem; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.15);
-                  text-align: center; border: none; cursor: pointer; margin-bottom: 5px;">
-            📥 Descargar {clean_name}
+           style="display: inline-flex; align-items: center; justify-content: center; width: 100%;
+                  background-color: #00853E; color: #FFFFFF !important; padding: 14px 20px; text-decoration: none !important;
+                  font-weight: 700; font-size: 1.05rem; border-radius: 8px; box-shadow: 0 3px 8px rgba(0,0,0,0.18);
+                  text-align: center; border: none; cursor: pointer; transition: background-color 0.2s ease;">
+            📥 Descargar Reporte PDF Oficial ({clean_name})
         </a>
-        """
-        st.markdown(html_btn, unsafe_allow_html=True)
-
-    with col_btn2:
-        if saved_path and os.path.exists(saved_path):
-            if st.button("📂 Abrir PDF en el Visor de Windows", key=f"{key_prefix}_btn_open_win", use_container_width=True):
-                try:
-                    os.startfile(saved_path)
-                    st.toast("Abriendo documento en su visor predeterminado...")
-                except Exception as e:
-                    st.error(f"No se pudo abrir automáticamente: {e}")
-        else:
-            st.download_button(
-                label=f"💾 Descarga Alternativa ({clean_name})",
-                data=pdf_bytes,
-                file_name=clean_name,
-                mime="application/pdf",
-                key=f"{key_prefix}_alt_dl",
-                use_container_width=True
-            )
+    </div>
+    """
+    st.markdown(html_btn, unsafe_allow_html=True)
 
     # Previsualización directa en pantalla
     if show_preview:
-        with st.expander("👁️ Ver Vista Previa del Reporte FSSA 106 generado", expanded=False):
+        with st.expander("👁️ Ver Vista Previa del Reporte FSSA 106 generado", expanded=True):
             img_preview = get_pdf_preview_image(pdf_bytes)
             if img_preview:
                 st.image(img_preview, caption=f"Vista previa oficial del documento: {clean_name}", use_container_width=True)
@@ -99,9 +78,13 @@ def stamp_photo(img_file, item_name: str, fecha_str: str) -> str:
         w, h = image.size
         draw.rectangle([(0, h - 35), (w, h)], fill=(0, 0, 0))
         
-        try:
-            font = ImageFont.truetype("C:\\Windows\\Fonts\\arial.ttf", 16)
-        except Exception:
+        # Búsqueda de fuentes multiplataforma
+        font = None
+        for p in ["C:\\Windows\\Fonts\\arial.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]:
+            if os.path.exists(p):
+                font = ImageFont.truetype(p, 16)
+                break
+        if not font:
             font = ImageFont.load_default()
             
         draw.text((10, h - 28), text, fill=(255, 255, 255), font=font)
@@ -115,29 +98,61 @@ def stamp_photo(img_file, item_name: str, fecha_str: str) -> str:
 
 
 def create_digital_signature_stamp(name: str, date_str: str) -> str:
-    """Genera una firma digital gráfica certificada con sello oficial de Sullair Argentina."""
-    img = Image.new("RGBA", (460, 125), (255, 255, 255, 0))
+    """Genera una firma digital gráfica certificada con sello oficial de Sullair Argentina y soporte total de acentos."""
+    img = Image.new("RGBA", (480, 130), (255, 255, 255, 0))
     draw = ImageDraw.Draw(img)
     
     # Marco institucional verde Sullair
-    draw.rounded_rectangle([(2, 2), (458, 123)], radius=8, outline=(0, 90, 42, 220), width=2, fill=(240, 253, 244, 240))
+    draw.rounded_rectangle([(2, 2), (478, 128)], radius=8, outline=(0, 122, 51, 230), width=2, fill=(240, 253, 244, 245))
     
-    try:
-        font_title = ImageFont.truetype("C:\\Windows\\Fonts\\arialbd.ttf", 14)
-        font_main = ImageFont.truetype("C:\\Windows\\Fonts\\arialbd.ttf", 12)
-        font_sub = ImageFont.truetype("C:\\Windows\\Fonts\\arial.ttf", 10)
-        font_hash = ImageFont.truetype("C:\\Windows\\Fonts\\consola.ttf", 9)
-    except Exception:
+    # Escudo de seguridad institucional dibujado en vector
+    draw.polygon([(18, 12), (32, 12), (32, 22), (25, 28), (18, 22)], fill=(0, 122, 51, 255))
+    draw.line([(21, 19), (24, 23), (29, 16)], fill=(255, 255, 255, 255), width=2)
+    
+    # Búsqueda de fuentes TrueType en Windows y Linux (para Streamlit Cloud)
+    font_title, font_main, font_sub, font_hash = None, None, None, None
+    font_paths_bold = [
+        "C:\\Windows\\Fonts\\arialbd.ttf",
+        "C:\\Windows\\Fonts\\segoeuib.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
+    ]
+    font_paths_reg = [
+        "C:\\Windows\\Fonts\\arial.ttf",
+        "C:\\Windows\\Fonts\\segoeui.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
+    ]
+    font_paths_mono = [
+        "C:\\Windows\\Fonts\\consola.ttf",
+        "C:\\Windows\\Fonts\\cour.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"
+    ]
+    for p in font_paths_bold:
+        if os.path.exists(p):
+            font_title = ImageFont.truetype(p, 13)
+            font_main = ImageFont.truetype(p, 12)
+            break
+    for p in font_paths_reg:
+        if os.path.exists(p):
+            font_sub = ImageFont.truetype(p, 10)
+            break
+    for p in font_paths_mono:
+        if os.path.exists(p):
+            font_hash = ImageFont.truetype(p, 9)
+            break
+            
+    if not font_title:
         font_title = ImageFont.load_default()
         font_main = ImageFont.load_default()
         font_sub = ImageFont.load_default()
         font_hash = ImageFont.load_default()
 
-    draw.text((16, 10), "🛡️ FIRMA DIGITAL CERTIFICADA - SULLAIR ARGENTINA", fill=(0, 90, 42, 255), font=font_title)
-    draw.text((16, 36), f"Inspector / Firmante: {name}", fill=(30, 41, 59, 255), font=font_main)
-    draw.text((16, 58), f"Fecha de emisión: {date_str} | Sistema FSSA 106 Rev. 06", fill=(71, 85, 105, 255), font=font_sub)
-    draw.text((16, 78), f"Certificación Digital: {uuid.uuid4().hex[:14].upper()}", fill=(100, 116, 139, 255), font=font_hash)
-    draw.text((16, 96), "Inspección mensual de flota - Sullair Argentina S.A.", fill=(100, 116, 139, 255), font=font_hash)
+    draw.text((38, 12), "FIRMA DIGITAL CERTIFICADA - SULLAIR ARGENTINA", fill=(0, 122, 51, 255), font=font_title)
+    draw.text((18, 36), f"Inspector / Firmante: {name}", fill=(30, 41, 59, 255), font=font_main)
+    draw.text((18, 58), f"Fecha de emision: {date_str} | Sistema FSSA 106 Rev. 06", fill=(71, 85, 105, 255), font=font_sub)
+    draw.text((18, 78), f"Certificacion Digital: {uuid.uuid4().hex[:14].upper()}", fill=(100, 116, 139, 255), font=font_hash)
+    draw.text((18, 96), "Inspeccion mensual de flota - Sullair Argentina S.A.", fill=(100, 116, 139, 255), font=font_hash)
 
     buf = io.BytesIO()
     img.save(buf, format="PNG")
@@ -146,49 +161,57 @@ def create_digital_signature_stamp(name: str, date_str: str) -> str:
 
 def render_checklist_view(user: dict):
     db = get_db()
-    st.markdown("### 📋 Control de Vehículos (Mensual)")
-    st.caption("Formulario oficial de inspección mensual **FSSA 106 Rev. 06**")
 
-    # Si hay un reporte recién guardado, mostrarlo de forma persistente y destacada
+    # PANTALLA DE CONFIRMACIÓN Y DESCARGA (Evita duplicaciones)
     if st.session_state.get("last_submission"):
         sub = st.session_state["last_submission"]
-        st.success(f"🎉 **¡Reporte FSSA 106 generado y guardado exitosamente!**")
+        st.markdown("### 🎉 ¡Inspección Registrada y Guardada con Éxito!")
+        
         with st.container():
             st.markdown(
                 f"""
-                <div style="background: #f0fdf4; border: 2px solid #86efac; padding: 16px; border-radius: 10px; margin-bottom: 20px;">
-                    <h4 style="margin: 0 0 10px 0; color: #166534;">📄 Reporte Oficial Listo</h4>
-                    <p style="margin: 0 0 6px 0; font-size: 0.95rem;">
+                <div style="background: #f0fdf4; border: 2px solid #86efac; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
+                    <h3 style="margin: 0 0 10px 0; color: #166534;">📄 Reporte Oficial FSSA 106 Listo</h3>
+                    <p style="margin: 0 0 8px 0; font-size: 1.05rem;">
                         <strong>ID de Inspección:</strong> <code>{sub['id'][:8]}</code> | 
-                        <strong>Vehículo:</strong> {sub['interno']} ({sub['patente']}) | 
+                        <strong>Vehículo:</strong> <strong>{sub['interno']}</strong> ({sub['patente']}) | 
                         <strong>Fecha:</strong> {sub['fecha']}
                     </p>
-                    <p style="margin: 0 0 10px 0; font-size: 0.9rem; color: #4b5563;">
-                        <strong>Estado:</strong> {'⚠️ Contiene ' + str(sub['nc_count']) + ' No Conformidades (Derivado a CASS)' if sub['nc_count'] > 0 else '✅ Cumple sin observaciones'}
+                    <p style="margin: 0 0 8px 0; font-size: 0.95rem; color: #374151;">
+                        <strong>Inspector:</strong> {sub.get('inspector', user.get('name'))} | 
+                        <strong>Estado:</strong> {'⚠️ Contiene ' + str(sub['nc_count']) + ' No Conformidades (Notificado a CASS)' if sub['nc_count'] > 0 else '✅ Cumple sin observaciones'}
                     </p>
                     <p style="margin: 0; font-size: 0.85rem; color: #15803d;">
-                        📁 <strong>Archivo persistido en disco:</strong> <code>{sub['saved_path']}</code>
+                        💾 <em>El reporte ya quedó guardado en la base de datos y en tu historial.</em>
                     </p>
                 </div>
                 """,
                 unsafe_allow_html=True
             )
             
-            # Bloque robusto de descarga y visor
+            # Bloque de descarga directa y vista previa
             render_pdf_download_block(
                 pdf_bytes=sub["pdf_bytes"],
                 filename=sub["filename"],
-                saved_path=sub["saved_path"],
-                key_prefix="sub_success",
+                saved_path=sub.get("saved_path"),
+                key_prefix="sub_confirm",
                 show_preview=True
             )
 
-            st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
-            if st.button("🔄 Cargar Nueva Inspección", use_container_width=True):
+            st.markdown("<div style='margin-top: 25px;'></div>", unsafe_allow_html=True)
+            if st.button("🔄 Realizar Nueva Inspección", type="secondary", use_container_width=True):
+                # Limpiar estado y reiniciar formulario
                 del st.session_state["last_submission"]
+                if "current_selected_veh" in st.session_state:
+                    del st.session_state["current_selected_veh"]
                 st.rerun()
 
-        st.markdown("---")
+        # Detener la ejecución aquí para NO mostrar el formulario duplicado abajo
+        return
+
+    # FORMULARIO DE CARGA DE INSPECCIÓN
+    st.markdown("### 📋 Control de Vehículos (Mensual)")
+    st.caption("Formulario oficial de inspección mensual **FSSA 106 Rev. 06**")
 
     # 1. DATOS DEL VEHÍCULO Y CABECERA
     vehicles = db.get_vehicles()
@@ -196,28 +219,29 @@ def render_checklist_view(user: dict):
     if user.get("assigned_vehicle_id"):
         assigned_v = db.get_vehicle_by_id(user["assigned_vehicle_id"])
 
+    # Armar opciones del selectbox
+    veh_options = ["(Seleccionar de la flota)"] + [f"{v['interno']} - {v['patente']} ({v['marca']} {v.get('modelo', '')})" for v in vehicles]
+    default_v_idx = 0
+    if assigned_v:
+        for idx, opt in enumerate(veh_options):
+            if assigned_v["patente"] in opt:
+                default_v_idx = idx
+                break
+
     with st.expander("🚗 Datos del Vehículo e Inspección", expanded=True):
         col_f1, col_f2 = st.columns([1, 2])
         with col_f1:
             fecha_val = st.date_input("Fecha de Inspección", value=date.today(), key="insp_fecha")
         with col_f2:
-            veh_options = ["(Seleccionar de la flota)"] + [f"{v['interno']} - {v['patente']} ({v['marca']} {v['modelo']})" for v in vehicles]
-            
-            default_v_idx = 0
-            if assigned_v:
-                for idx, opt in enumerate(veh_options):
-                    if assigned_v["patente"] in opt:
-                        default_v_idx = idx
-                        break
-
             selected_veh_opt = st.selectbox(
                 "Vehículo Asignado / Flota",
                 options=veh_options,
                 index=default_v_idx,
-                help="Podés seleccionar tu vehículo o ingresar los datos manualmente si usaste otra unidad."
+                key="sb_vehiculo",
+                help="Seleccioná tu unidad asignada o elegí otra de la flota para precargar automáticamente sus datos."
             )
 
-        # Cargar datos del vehículo seleccionado
+        # Encontrar vehículo seleccionado
         sel_v_data = None
         if selected_veh_opt != "(Seleccionar de la flota)":
             sel_patente = selected_veh_opt.split("-")[1].split("(")[0].strip()
@@ -226,17 +250,54 @@ def render_checklist_view(user: dict):
                     sel_v_data = v
                     break
 
+        # Sincronización automática de datos del vehículo a session_state
+        if ("current_selected_veh" not in st.session_state or st.session_state["current_selected_veh"] != selected_veh_opt) and sel_v_data:
+            st.session_state["current_selected_veh"] = selected_veh_opt
+            st.session_state["v_interno"] = sel_v_data["interno"]
+            st.session_state["v_patente"] = sel_v_data["patente"]
+            st.session_state["v_marca"] = sel_v_data["marca"]
+            st.session_state["v_modelo"] = sel_v_data.get("modelo", "")
+            st.session_state["v_km"] = int(sel_v_data.get("km_actual") or 0)
+            st.session_state["doc_tarjeta"] = "SI" if sel_v_data.get("tarjeta_verde", True) else "NO"
+            st.session_state["doc_manual"] = "SI" if sel_v_data.get("manual", True) else "NO"
+            if sel_v_data.get("vtv_vencimiento"):
+                try:
+                    st.session_state["doc_vtv_venc"] = datetime.strptime(sel_v_data["vtv_vencimiento"], "%Y-%m-%d").date()
+                except Exception:
+                    pass
+            if sel_v_data.get("seguro_vencimiento"):
+                try:
+                    st.session_state["doc_seguro_venc"] = datetime.strptime(sel_v_data["seguro_vencimiento"], "%Y-%m-%d").date()
+                except Exception:
+                    pass
+
         c_v1, c_v2, c_v3 = st.columns(3)
         with c_v1:
-            interno_val = st.text_input("N° Interno *", value=sel_v_data["interno"] if sel_v_data else "", key="v_interno")
-            marca_val = st.text_input("Marca *", value=sel_v_data["marca"] if sel_v_data else "", key="v_marca")
+            interno_val = st.text_input(
+                "N° Interno *",
+                value=st.session_state.get("v_interno", sel_v_data["interno"] if sel_v_data else ""),
+                key="v_interno"
+            )
+            marca_val = st.text_input(
+                "Marca *",
+                value=st.session_state.get("v_marca", sel_v_data["marca"] if sel_v_data else ""),
+                key="v_marca"
+            )
         with c_v2:
-            patente_val = st.text_input("Patente *", value=sel_v_data["patente"] if sel_v_data else "", key="v_patente")
-            modelo_val = st.text_input("Modelo", value=sel_v_data["modelo"] if sel_v_data else "", key="v_modelo")
+            patente_val = st.text_input(
+                "Patente *",
+                value=st.session_state.get("v_patente", sel_v_data["patente"] if sel_v_data else ""),
+                key="v_patente"
+            )
+            modelo_val = st.text_input(
+                "Modelo",
+                value=st.session_state.get("v_modelo", sel_v_data.get("modelo", "") if sel_v_data else ""),
+                key="v_modelo"
+            )
         with c_v3:
             km_val = st.number_input(
                 "Kilometraje Actual *",
-                value=int(sel_v_data["km_actual"]) if sel_v_data else 0,
+                value=int(st.session_state.get("v_km", sel_v_data.get("km_actual", 0) if sel_v_data else 0)),
                 min_value=0,
                 step=100,
                 key="v_km"
@@ -249,14 +310,14 @@ def render_checklist_view(user: dict):
                 "Tarjeta Verde",
                 options=["SI", "NO"],
                 horizontal=True,
-                index=0 if (sel_v_data and sel_v_data.get("tarjeta_verde", True)) else 0,
+                index=0 if st.session_state.get("doc_tarjeta", "SI") == "SI" else 1,
                 key="doc_tarjeta"
             )
             manual_val = st.radio(
                 "Manual del Vehículo",
                 options=["SI", "NO"],
                 horizontal=True,
-                index=0 if (sel_v_data and sel_v_data.get("manual", True)) else 0,
+                index=0 if st.session_state.get("doc_manual", "SI") == "SI" else 1,
                 key="doc_manual"
             )
         with col_d2:
@@ -264,24 +325,14 @@ def render_checklist_view(user: dict):
             with col_vtv1:
                 vtv_val = st.radio("VTV / RTO", options=["SI", "NO"], horizontal=True, key="doc_vtv")
             with col_vtv2:
-                default_vtv_date = date.today()
-                if sel_v_data and sel_v_data.get("vtv_vencimiento"):
-                    try:
-                        default_vtv_date = datetime.strptime(sel_v_data["vtv_vencimiento"], "%Y-%m-%d").date()
-                    except Exception:
-                        pass
+                default_vtv_date = st.session_state.get("doc_vtv_venc", date.today())
                 vtv_venc_val = st.date_input("Vencimiento VTV", value=default_vtv_date, key="doc_vtv_venc")
 
             col_seg1, col_seg2 = st.columns([1, 2])
             with col_seg1:
                 seguro_val = st.radio("Seguro vehicular", options=["SI", "NO"], horizontal=True, key="doc_seguro")
             with col_seg2:
-                default_seg_date = date.today()
-                if sel_v_data and sel_v_data.get("seguro_vencimiento"):
-                    try:
-                        default_seg_date = datetime.strptime(sel_v_data["seguro_vencimiento"], "%Y-%m-%d").date()
-                    except Exception:
-                        pass
+                default_seg_date = st.session_state.get("doc_seguro_venc", date.today())
                 seguro_venc_val = st.date_input("Vencimiento Seguro", value=default_seg_date, key="doc_seguro_venc")
 
     # 2. CHECKLIST INTERACTIVO
@@ -461,7 +512,6 @@ def render_checklist_view(user: dict):
                 st.warning("El módulo de dibujo táctil no está disponible en este navegador. Se aplicará firma digital certificada.")
                 final_realizo_sig_b64 = create_digital_signature_stamp(user.get("name", "Inspector"), datetime.now().strftime("%d/%m/%Y %H:%M"))
 
-    # Si no se eligió ninguna firma manual, asegurar firma digital por defecto
     if not final_realizo_sig_b64:
         final_realizo_sig_b64 = create_digital_signature_stamp(user.get("name", "Inspector"), datetime.now().strftime("%d/%m/%Y %H:%M"))
 
@@ -530,12 +580,13 @@ def render_checklist_view(user: dict):
         except Exception as e:
             print(f"Error guardando PDF en disco: {e}")
 
-        # 4. Guardar en session_state para descarga persistente
+        # 4. Guardar en session_state para confirmación y descarga exclusiva
         st.session_state["last_submission"] = {
             "id": insp_id,
             "interno": interno_val,
             "patente": patente_val,
             "fecha": fecha_val.strftime("%d/%m/%Y"),
+            "inspector": user.get("name"),
             "nc_count": nc_total,
             "pdf_bytes": pdf_bytes,
             "filename": pdf_filename,

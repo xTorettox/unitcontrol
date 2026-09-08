@@ -16,9 +16,9 @@ except ImportError:
 DB_FILE = os.path.join(os.path.dirname(__file__), "sullair_local.db")
 SCHEMA_FILE = os.path.join(os.path.dirname(__file__), "schema.sql")
 
-# Configuración por defecto de Supabase (proporcionada por el usuario)
+# Configuración oficial de Supabase
 DEFAULT_SUPABASE_URL = "https://kgdbgjuezooecsobfwfy.supabase.co"
-DEFAULT_SUPABASE_KEY = "sb_publishable_zkq6DM_FialXcxIi78Jtkw_hnU_pneX"
+DEFAULT_SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtnZGJnanVlem9vZWNzb2Jmd2Z5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU3NjE2NjAsImV4cCI6MjEwMTMzNzY2MH0.sBop0Ktko7uH6phKvZ6P141wNYdbytyHeYl1t7OutCE"
 
 
 class DatabaseManager:
@@ -36,9 +36,79 @@ class DatabaseManager:
         """Inicializa la base de datos local SQLite con el esquema definido."""
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-        if os.path.exists(SCHEMA_FILE):
-            with open(SCHEMA_FILE, "r", encoding="utf-8") as f:
-                cursor.executescript(f.read())
+        cursor.executescript("""
+            CREATE TABLE IF NOT EXISTS sullair_vehicles (
+                id TEXT PRIMARY KEY,
+                interno TEXT NOT NULL,
+                patente TEXT UNIQUE NOT NULL,
+                marca TEXT NOT NULL,
+                modelo TEXT NOT NULL,
+                km_actual INTEGER DEFAULT 0,
+                vtv_vencimiento TEXT,
+                seguro_vencimiento TEXT,
+                seguro_poliza TEXT,
+                tarjeta_verde BOOLEAN DEFAULT 1,
+                manual BOOLEAN DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS sullair_users (
+                id TEXT PRIMARY KEY,
+                email TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT 'comercial',
+                password_hash TEXT NOT NULL,
+                assigned_vehicle_id TEXT,
+                signature_png TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS sullair_inspections (
+                id TEXT PRIMARY KEY,
+                fecha TEXT NOT NULL,
+                mes_periodo TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                user_name TEXT NOT NULL,
+                vehicle_id TEXT,
+                interno TEXT NOT NULL,
+                patente TEXT NOT NULL,
+                marca TEXT NOT NULL,
+                modelo TEXT NOT NULL,
+                km INTEGER NOT NULL DEFAULT 0,
+                tarjeta_verde_si_no TEXT DEFAULT 'SI',
+                manual_si_no TEXT DEFAULT 'SI',
+                vtv_si_no TEXT DEFAULT 'SI',
+                vtv_vencimiento TEXT,
+                seguro_si_no TEXT DEFAULT 'SI',
+                seguro_vencimiento TEXT,
+                observaciones TEXT,
+                realizo_nombre TEXT,
+                realizo_firma_png TEXT,
+                responsable_sitio_nombre TEXT,
+                responsable_sitio_firma_png TEXT,
+                status TEXT DEFAULT 'pendiente_revision',
+                nc_count INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS sullair_inspection_items (
+                id TEXT PRIMARY KEY,
+                inspection_id TEXT NOT NULL,
+                section TEXT NOT NULL,
+                item_name TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'C',
+                has_photo BOOLEAN DEFAULT 0,
+                observation TEXT,
+                FOREIGN KEY (inspection_id) REFERENCES sullair_inspections(id) ON DELETE CASCADE
+            );
+            CREATE TABLE IF NOT EXISTS sullair_inspection_photos (
+                id TEXT PRIMARY KEY,
+                inspection_id TEXT NOT NULL,
+                item_name TEXT NOT NULL,
+                file_name TEXT NOT NULL,
+                image_base64 TEXT NOT NULL,
+                caption TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (inspection_id) REFERENCES sullair_inspections(id) ON DELETE CASCADE
+            );
+        """)
         conn.commit()
         conn.close()
 
@@ -47,13 +117,11 @@ class DatabaseManager:
         if SUPABASE_AVAILABLE and self.supabase_url and self.supabase_key:
             try:
                 client = create_client(self.supabase_url, self.supabase_key)
-                # Test query on sullair_users
                 res = client.table("sullair_users").select("id").limit(1).execute()
                 self.supabase_client = client
                 self.use_supabase = True
                 print("Conectado exitosamente a Supabase con tablas sullair_*.")
             except Exception as e:
-                # Si las tablas no existen en Supabase aún o falla la autenticación de API, usamos SQLite local
                 print(f"Aviso Supabase: {e}. Utilizando base de datos local SQLite para asegurar disponibilidad continua.")
                 self.use_supabase = False
 
@@ -64,40 +132,12 @@ class DatabaseManager:
         try:
             return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
         except Exception:
-            return password == hashed  # Fallback si no está hasheada
+            return password == hashed
 
     def _seed_default_data(self):
         """Crea usuarios y vehículos iniciales de prueba si la base está vacía."""
-        users = self.get_all_users()
-        if not users:
-            # 1. Admin
-            self.create_user(
-                email="admin@sullair.com.ar",
-                name="Administrador General",
-                role="admin",
-                password="admin",
-                assigned_vehicle_id=None
-            )
-            # 2. Gestor CASS
-            self.create_user(
-                email="cass@sullair.com.ar",
-                name="Equipo CASS - Control",
-                role="gestor_cass",
-                password="cass",
-                assigned_vehicle_id=None
-            )
-            # 3. Responsable Flota
-            self.create_user(
-                email="flota@sullair.com.ar",
-                name="Responsable de Flota",
-                role="responsable_flota",
-                password="flota",
-                assigned_vehicle_id=None
-            )
-
         vehicles = self.get_vehicles()
         if not vehicles:
-            # Sembrar vehículos de ejemplo Sullair
             v1_id = self.create_vehicle({
                 "interno": "INT-104",
                 "patente": "AE 452 CD",
@@ -116,7 +156,7 @@ class DatabaseManager:
                 "marca": "Ford",
                 "modelo": "Ranger XLS 3.2",
                 "km_actual": 62100,
-                "vtv_vencimiento": "2026-09-25", # Próximo a vencer
+                "vtv_vencimiento": "2026-09-25",
                 "seguro_vencimiento": "2026-12-01",
                 "seguro_poliza": "La Caja - Póliza #331902",
                 "tarjeta_verde": True,
@@ -128,35 +168,55 @@ class DatabaseManager:
                 "marca": "Volkswagen",
                 "modelo": "Amarok 2.0 TDI",
                 "km_actual": 91500,
-                "vtv_vencimiento": "2026-09-18", # Alerta vencimiento
-                "seguro_vencimiento": "2026-09-28", # Alerta seguro
+                "vtv_vencimiento": "2026-09-18",
+                "seguro_vencimiento": "2026-09-28",
                 "seguro_poliza": "Zurich - Póliza #772819",
                 "tarjeta_verde": True,
                 "manual": True
             })
+            self.create_vehicle({
+                "interno": "INT-120",
+                "patente": "AF 444 DF",
+                "marca": "Toyota",
+                "modelo": "Yaris XLS 1.5",
+                "km_actual": 700,
+                "vtv_vencimiento": "2027-01-15",
+                "seguro_vencimiento": "2027-01-15",
+                "seguro_poliza": "San Cristóbal - #102938",
+                "tarjeta_verde": True,
+                "manual": True
+            })
+        else:
+            v1_id = vehicles[0]["id"]
+            v2_id = vehicles[1]["id"] if len(vehicles) > 1 else v1_id
 
-            # Crear usuario comercial con vehículo asignado
-            self.create_user(
-                email="comercial@sullair.com.ar",
-                name="Martín Rodríguez (Comercial)",
-                role="comercial",
-                password="comercial",
-                assigned_vehicle_id=v1_id
-            )
-            self.create_user(
-                email="lucas.gomez@sullair.com.ar",
-                name="Lucas Gómez (Comercial)",
-                role="comercial",
-                password="lucas",
-                assigned_vehicle_id=v2_id
-            )
+        # Asegurar usuarios solicitados
+        user_seeds = [
+            ("fcendra@sullair.com.ar", "Federico Cendra (Administrador)", "admin", "C4n1ch3r1426", None),
+            ("ltoto@sullair.com.ar", "Lucas Toto (Comercial)", "comercial", "esmeralda26", v1_id),
+            ("admin@sullair.com.ar", "Administrador General", "admin", "admin", None),
+            ("cass@sullair.com.ar", "Equipo CASS - Control", "gestor_cass", "cass", None),
+            ("flota@sullair.com.ar", "Responsable de Flota", "responsable_flota", "flota", None),
+            ("comercial@sullair.com.ar", "Martín Rodríguez (Comercial)", "comercial", "comercial", v1_id),
+        ]
+
+        for email, name, role, pwd, veh_id in user_seeds:
+            existing = self.get_user_by_email(email)
+            if not existing:
+                self.create_user(email=email, name=name, role=role, password=pwd, assigned_vehicle_id=veh_id)
 
     # --- USUARIOS ---
-    def get_user_by_email(self, email: str) -> Optional[Dict[str, Any]]:
+    def get_user_by_email(self, identifier: str) -> Optional[Dict[str, Any]]:
+        """Busca un usuario por correo electrónico exacto o por nombre de usuario (ej: 'fcendra')."""
+        if not identifier:
+            return None
+        clean_id = identifier.strip().lower()
+        search_email = clean_id if "@" in clean_id else f"{clean_id}@sullair.com.ar"
+        
         conn = sqlite3.connect(DB_FILE)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM sullair_users WHERE LOWER(email) = LOWER(?)", (email.strip(),))
+        cursor.execute("SELECT * FROM sullair_users WHERE LOWER(email) = ? OR LOWER(email) LIKE ?", (search_email, f"{clean_id}@%"))
         row = cursor.fetchone()
         conn.close()
         return dict(row) if row else None

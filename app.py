@@ -58,19 +58,19 @@ def render_login_screen():
                         st.error("Credenciales incorrectas. Verifique su correo o contraseña.")
 
         # Acceso Rápido de Demostración para Pruebas
-        with st.expander("🔑 Cuentas de Demostración para Prueba Rápida", expanded=True):
-            st.caption("Seleccioná un perfil preconfigurado para probar el sistema:")
+        with st.expander("🔑 Cuentas Preconfiguradas para Acceso Rápido", expanded=True):
+            st.caption("Seleccioná un perfil para ingresar directamente:")
             col_d1, col_d2 = st.columns(2)
             with col_d1:
-                if st.button("👤 Usuario Comercial (Martín)", use_container_width=True):
-                    login_user("comercial@sullair.com.ar", "comercial")
+                if st.button("👑 Federico Cendra (Admin)", use_container_width=True):
+                    login_user("fcendra@sullair.com.ar", "C4n1ch3r1426")
                     st.rerun()
-                if st.button("📊 Gestor CASS (Auditoría)", use_container_width=True):
-                    login_user("cass@sullair.com.ar", "cass")
+                if st.button("🚙 Lucas Toto (Comercial)", use_container_width=True):
+                    login_user("ltoto@sullair.com.ar", "esmeralda26")
                     st.rerun()
             with col_d2:
-                if st.button("🚙 Responsable de Flota", use_container_width=True):
-                    login_user("flota@sullair.com.ar", "flota")
+                if st.button("📊 Gestor CASS (Auditoría)", use_container_width=True):
+                    login_user("cass@sullair.com.ar", "cass")
                     st.rerun()
                 if st.button("⚙️ Administrador General", use_container_width=True):
                     login_user("admin@sullair.com.ar", "admin")
