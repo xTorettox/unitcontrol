@@ -1,0 +1,140 @@
+/* Sullair Argentina - Mobile First Custom Theme */
+:root {
+    --sullair-green: #00853E;
+    --sullair-dark-green: #005A2A;
+    --sullair-light-green: #E6F4EA;
+    --sullair-gray: #4A5568;
+    --sullair-light-gray: #F7FAFC;
+    --sullair-card-bg: #FFFFFF;
+    --sullair-border: #E2E8F0;
+    --nc-red: #D93025;
+    --nc-bg: #FCE8E6;
+}
+
+/* Espaciado superior limpio para que la barra de Streamlit no tape el contenido */
+header[data-testid="stHeader"] {
+    background-color: rgba(255, 255, 255, 0.95);
+    z-index: 99;
+}
+
+.block-container {
+    padding-top: 4.5rem !important;
+    padding-bottom: 3.5rem !important;
+    padding-left: 1.25rem !important;
+    padding-right: 1.25rem !important;
+    max-width: 1200px;
+}
+
+/* Tarjetas Mobile-First */
+.mobile-card {
+    background-color: var(--sullair-card-bg);
+    border: 1px solid var(--sullair-border);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.mobile-card-header {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--sullair-dark-green);
+    border-bottom: 2px solid var(--sullair-green);
+    padding-bottom: 0.4rem;
+    margin-bottom: 0.8rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+/* Badges de estado */
+.status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.65rem;
+    border-radius: 9999px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+.badge-c {
+    background-color: #E6F4EA;
+    color: #137333;
+    border: 1px solid #CEEAD6;
+}
+.badge-nc {
+    background-color: #FCE8E6;
+    color: #C5221F;
+    border: 1px solid #FAD2CF;
+}
+.badge-na {
+    background-color: #F1F3F4;
+    color: #5F6368;
+    border: 1px solid #DADCE0;
+}
+
+/* Ítems del Checklist */
+.checklist-row {
+    display: flex;
+    flex-direction: column;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid #EDF2F7;
+}
+@media (min-width: 768px) {
+    .checklist-row {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+    }
+}
+
+/* Alert Boxes */
+.alert-card-warning {
+    background-color: #FEF7E0;
+    border-left: 4px solid #F9AB00;
+    color: #8A5700;
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+}
+.alert-card-danger {
+    background-color: #FCE8E6;
+    border-left: 4px solid #D93025;
+    color: #C5221F;
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+}
+
+/* KPI Cards */
+.kpi-container {
+    background: linear-gradient(135deg, #FFFFFF 0%, #F8FAF8 100%);
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    padding: 1.2rem;
+    text-align: center;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.03);
+}
+.kpi-val {
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: var(--sullair-green);
+    line-height: 1.1;
+}
+.kpi-label {
+    font-size: 0.85rem;
+    color: #718096;
+    font-weight: 600;
+    text-transform: uppercase;
+    margin-top: 0.3rem;
+}
+
+/* Estilo de botones */
+button[kind="primary"] {
+    background-color: var(--sullair-green) !important;
+    border-color: var(--sullair-green) !important;
+    color: white !important;
+    font-weight: 600 !important;
+    border-radius: 8px !important;
+}
