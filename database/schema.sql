@@ -123,23 +123,14 @@ ON CONFLICT (patente) DO UPDATE SET
     vtv_vencimiento = EXCLUDED.vtv_vencimiento,
     seguro_vencimiento = EXCLUDED.seguro_vencimiento;
 
--- DATOS INICIALES DE USUARIOS Y CONTRASEÑAS
--- Hashes generados con bcrypt:
--- fcendra (pass: C4n1ch3r1426) -> $2b$12$e1wJD.neZVagTBTDCjHpWeqR7yiXsXc2VhGHhejXi7QpbeGiTBUwm
--- ltoto (pass: esmeralda26) -> $2b$12$gkrq9uOaqtHGnkgr2uZ2e.SxsqbscwPQHJUSgeehRAtqcDZOaOclG
--- comercial (pass: comercial) -> $2b$12$U63wFgcdg449HHJa.UmofOHMKGkReFc.FEWD3KbOu54uxXpa9V2Ja
--- cass (pass: cass) -> $2b$12$jfYwPkYY4Ef4jp/qp/U3RuaoymVs6DoBL7Nszuq9Pkdr0jVGa1u4a
--- flota (pass: flota) -> $2b$12$HHoOqJz5TJsf2orm4MKkpeRGMlvacmMDzQUTMVsQ/RiB24M9kHyiK
--- admin (pass: admin) -> $2b$12$ZY/Zpe3Onjo32SGs85A0Wu0y9OW4mmgDQET5Crm4eHGuz.Bam5/mC
+-- DATOS INICIALES DE USUARIOS Y ROLES
+-- fcendra (pass: C4n1ch3r1426) -> Federico Cendra (admin)
+-- ltoto (pass: esmeralda26) -> Lourdes Toto (gestor_cass)
 
 INSERT INTO sullair_users (id, email, name, role, password_hash, assigned_vehicle_id)
 VALUES
-    ('u-fcendra', 'fcendra@sullair.com.ar', 'Federico Cendra (Administrador)', 'admin', '$2b$12$e1wJD.neZVagTBTDCjHpWeqR7yiXsXc2VhGHhejXi7QpbeGiTBUwm', NULL),
-    ('u-ltoto', 'ltoto@sullair.com.ar', 'Lucas Toto (Comercial)', 'comercial', '$2b$12$gkrq9uOaqtHGnkgr2uZ2e.SxsqbscwPQHJUSgeehRAtqcDZOaOclG', 'v-104'),
-    ('u-comercial', 'comercial@sullair.com.ar', 'Martín Rodríguez (Comercial)', 'comercial', '$2b$12$U63wFgcdg449HHJa.UmofOHMKGkReFc.FEWD3KbOu54uxXpa9V2Ja', 'v-104'),
-    ('u-cass', 'cass@sullair.com.ar', 'Equipo CASS - Control', 'gestor_cass', '$2b$12$jfYwPkYY4Ef4jp/qp/U3RuaoymVs6DoBL7Nszuq9Pkdr0jVGa1u4a', NULL),
-    ('u-flota', 'flota@sullair.com.ar', 'Responsable de Flota', 'responsable_flota', '$2b$12$HHoOqJz5TJsf2orm4MKkpeRGMlvacmMDzQUTMVsQ/RiB24M9kHyiK', NULL),
-    ('u-admin', 'admin@sullair.com.ar', 'Administrador General', 'admin', '$2b$12$ZY/Zpe3Onjo32SGs85A0Wu0y9OW4mmgDQET5Crm4eHGuz.Bam5/mC', NULL)
+    ('u-fcendra', 'fcendra@sullair.com.ar', 'Federico Cendra', 'admin', '$2b$12$4fSUwDiWI3aqF2p1eLZ12eTnDBSp8TJKW1ACilXUDQPquSr70lLIe', NULL),
+    ('u-ltoto', 'ltoto@sullair.com.ar', 'Lourdes Toto', 'gestor_cass', '$2b$12$r8NVEwMxGvZm6jAZZR2Bbu1oqgXFF7Oz91p/ZRjcq1UXF9fPfo3jG', NULL)
 ON CONFLICT (email) DO UPDATE SET 
     name = EXCLUDED.name,
     role = EXCLUDED.role,

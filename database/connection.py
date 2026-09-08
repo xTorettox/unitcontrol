@@ -135,10 +135,11 @@ class DatabaseManager:
             return password == hashed
 
     def _seed_default_data(self):
-        """Crea usuarios y vehículos iniciales de prueba si la base está vacía."""
+        """Crea usuarios y vehículos iniciales asegurando únicamente las cuentas oficiales."""
+        # 1. Asegurar vehículos de flota base
         vehicles = self.get_vehicles()
         if not vehicles:
-            v1_id = self.create_vehicle({
+            self.create_vehicle({
                 "interno": "INT-104",
                 "patente": "AE 452 CD",
                 "marca": "Toyota",
@@ -150,7 +151,7 @@ class DatabaseManager:
                 "tarjeta_verde": True,
                 "manual": True
             })
-            v2_id = self.create_vehicle({
+            self.create_vehicle({
                 "interno": "INT-108",
                 "patente": "AF 892 KL",
                 "marca": "Ford",
@@ -162,7 +163,7 @@ class DatabaseManager:
                 "tarjeta_verde": True,
                 "manual": True
             })
-            v3_id = self.create_vehicle({
+            self.create_vehicle({
                 "interno": "INT-112",
                 "patente": "AD 311 ZZ",
                 "marca": "Volkswagen",
@@ -186,24 +187,30 @@ class DatabaseManager:
                 "tarjeta_verde": True,
                 "manual": True
             })
-        else:
-            v1_id = vehicles[0]["id"]
-            v2_id = vehicles[1]["id"] if len(vehicles) > 1 else v1_id
 
-        # Asegurar usuarios solicitados
+        # 2. Limpiar usuarios mock/demo antiguos de SQLite si existieran
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM sullair_users WHERE email IN ('comercial@sullair.com.ar', 'cass@sullair.com.ar', 'flota@sullair.com.ar', 'admin@sullair.com.ar')")
+        conn.commit()
+        conn.close()
+
+        # 3. Asegurar las dos cuentas principales requeridas
+        # - fcendra (admin, clave C4n1ch3r1426)
+        # - ltoto (Lourdes Toto, gestor_cass, clave esmeralda26)
         user_seeds = [
-            ("fcendra@sullair.com.ar", "Federico Cendra (Administrador)", "admin", "C4n1ch3r1426", None),
-            ("ltoto@sullair.com.ar", "Lucas Toto (Comercial)", "comercial", "esmeralda26", v1_id),
-            ("admin@sullair.com.ar", "Administrador General", "admin", "admin", None),
-            ("cass@sullair.com.ar", "Equipo CASS - Control", "gestor_cass", "cass", None),
-            ("flota@sullair.com.ar", "Responsable de Flota", "responsable_flota", "flota", None),
-            ("comercial@sullair.com.ar", "Martín Rodríguez (Comercial)", "comercial", "comercial", v1_id),
+            ("fcendra@sullair.com.ar", "Federico Cendra", "admin", "C4n1ch3r1426", None),
+            ("ltoto@sullair.com.ar", "Lourdes Toto", "gestor_cass", "esmeralda26", None),
         ]
 
         for email, name, role, pwd, veh_id in user_seeds:
             existing = self.get_user_by_email(email)
             if not existing:
                 self.create_user(email=email, name=name, role=role, password=pwd, assigned_vehicle_id=veh_id)
+            else:
+                # Actualizar nombre y rol si diferían
+                if existing.get("role") != role or existing.get("name") != name:
+                    self.update_user(existing["id"], {"name": name, "role": role, "password": pwd})
 
     # --- USUARIOS ---
     def get_user_by_email(self, identifier: str) -> Optional[Dict[str, Any]]:
@@ -213,6 +220,16 @@ class DatabaseManager:
         clean_id = identifier.strip().lower()
         search_email = clean_id if "@" in clean_id else f"{clean_id}@sullair.com.ar"
         
+        # 1. Intentar en Supabase
+        if self.use_supabase and self.supabase_client:
+            try:
+                res = self.supabase_client.table("sullair_users").select("*").or_(f"email.eq.{search_email},email.ilike.{clean_id}@%").execute()
+                if res.data and len(res.data) > 0:
+                    return res.data[0]
+            except Exception as e:
+                print(f"Supabase get_user_by_email fallback: {e}")
+
+        # 2. Fallback local SQLite
         conn = sqlite3.connect(DB_FILE)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -222,6 +239,14 @@ class DatabaseManager:
         return dict(row) if row else None
 
     def get_user_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
+        if self.use_supabase and self.supabase_client:
+            try:
+                res = self.supabase_client.table("sullair_users").select("*").eq("id", user_id).execute()
+                if res.data and len(res.data) > 0:
+                    return res.data[0]
+            except Exception as e:
+                print(f"Supabase get_user_by_id fallback: {e}")
+
         conn = sqlite3.connect(DB_FILE)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -231,6 +256,14 @@ class DatabaseManager:
         return dict(row) if row else None
 
     def get_all_users(self) -> List[Dict[str, Any]]:
+        if self.use_supabase and self.supabase_client:
+            try:
+                res = self.supabase_client.table("sullair_users").select("*").order("name").execute()
+                if res.data:
+                    return res.data
+            except Exception as e:
+                print(f"Supabase get_all_users fallback: {e}")
+
         conn = sqlite3.connect(DB_FILE)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -242,28 +275,59 @@ class DatabaseManager:
     def create_user(self, email: str, name: str, role: str, password: str, assigned_vehicle_id: Optional[str] = None) -> str:
         user_id = str(uuid.uuid4())
         pwd_hash = self._hash_password(password)
+        clean_email = email.strip().lower()
+        clean_name = name.strip()
+
+        # Guardar en Supabase
+        if self.use_supabase and self.supabase_client:
+            try:
+                self.supabase_client.table("sullair_users").insert({
+                    "id": user_id,
+                    "email": clean_email,
+                    "name": clean_name,
+                    "role": role,
+                    "password_hash": pwd_hash,
+                    "assigned_vehicle_id": assigned_vehicle_id
+                }).execute()
+            except Exception as e:
+                print(f"Supabase create_user error: {e}")
+
+        # Guardar en SQLite local
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO sullair_users (id, email, name, role, password_hash, assigned_vehicle_id)
+            INSERT OR REPLACE INTO sullair_users (id, email, name, role, password_hash, assigned_vehicle_id)
             VALUES (?, ?, ?, ?, ?, ?)
-        """, (user_id, email.strip().lower(), name.strip(), role, pwd_hash, assigned_vehicle_id))
+        """, (user_id, clean_email, clean_name, role, pwd_hash, assigned_vehicle_id))
         conn.commit()
         conn.close()
         return user_id
 
     def update_user(self, user_id: str, data: Dict[str, Any]) -> bool:
+        update_payload = {}
         fields = []
         values = []
         for k, v in data.items():
             if k == "password" and v:
+                h = self._hash_password(v)
+                update_payload["password_hash"] = h
                 fields.append("password_hash = ?")
-                values.append(self._hash_password(v))
+                values.append(h)
             elif k in ["name", "email", "role", "assigned_vehicle_id", "signature_png"]:
+                update_payload[k] = v
                 fields.append(f"{k} = ?")
                 values.append(v)
-        if not fields:
+        if not update_payload:
             return False
+
+        # Actualizar en Supabase
+        if self.use_supabase and self.supabase_client:
+            try:
+                self.supabase_client.table("sullair_users").update(update_payload).eq("id", user_id).execute()
+            except Exception as e:
+                print(f"Supabase update_user error: {e}")
+
+        # Actualizar en SQLite
         values.append(user_id)
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
@@ -273,6 +337,12 @@ class DatabaseManager:
         return True
 
     def delete_user(self, user_id: str) -> bool:
+        if self.use_supabase and self.supabase_client:
+            try:
+                self.supabase_client.table("sullair_users").delete().eq("id", user_id).execute()
+            except Exception as e:
+                print(f"Supabase delete_user error: {e}")
+
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
         cursor.execute("DELETE FROM sullair_users WHERE id = ?", (user_id,))
@@ -282,6 +352,14 @@ class DatabaseManager:
 
     # --- VEHÍCULOS ---
     def get_vehicles(self) -> List[Dict[str, Any]]:
+        if self.use_supabase and self.supabase_client:
+            try:
+                res = self.supabase_client.table("sullair_vehicles").select("*").order("interno").execute()
+                if res.data and len(res.data) > 0:
+                    return res.data
+            except Exception as e:
+                print(f"Supabase get_vehicles fallback: {e}")
+
         conn = sqlite3.connect(DB_FILE)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -291,6 +369,14 @@ class DatabaseManager:
         return [dict(r) for r in rows]
 
     def get_vehicle_by_id(self, vehicle_id: str) -> Optional[Dict[str, Any]]:
+        if self.use_supabase and self.supabase_client:
+            try:
+                res = self.supabase_client.table("sullair_vehicles").select("*").eq("id", vehicle_id).execute()
+                if res.data and len(res.data) > 0:
+                    return res.data[0]
+            except Exception as e:
+                print(f"Supabase get_vehicle_by_id fallback: {e}")
+
         conn = sqlite3.connect(DB_FILE)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -301,42 +387,78 @@ class DatabaseManager:
 
     def create_vehicle(self, data: Dict[str, Any]) -> str:
         v_id = str(uuid.uuid4())
+        clean_interno = data.get("interno", "").strip()
+        clean_patente = data.get("patente", "").strip().upper()
+        clean_marca = data.get("marca", "").strip()
+        clean_modelo = data.get("modelo", "").strip()
+        km_val = int(data.get("km_actual", 0))
+        vtv_val = data.get("vtv_vencimiento", "")
+        seg_val = data.get("seguro_vencimiento", "")
+        poliza_val = data.get("seguro_poliza", "")
+        tarjeta_v = True if data.get("tarjeta_verde", True) else False
+        manual_v = True if data.get("manual", True) else False
+
+        # Guardar en Supabase
+        if self.use_supabase and self.supabase_client:
+            try:
+                self.supabase_client.table("sullair_vehicles").insert({
+                    "id": v_id,
+                    "interno": clean_interno,
+                    "patente": clean_patente,
+                    "marca": clean_marca,
+                    "modelo": clean_modelo,
+                    "km_actual": km_val,
+                    "vtv_vencimiento": vtv_val,
+                    "seguro_vencimiento": seg_val,
+                    "seguro_poliza": poliza_val,
+                    "tarjeta_verde": tarjeta_v,
+                    "manual": manual_v
+                }).execute()
+            except Exception as e:
+                print(f"Supabase create_vehicle error: {e}")
+
+        # Guardar en SQLite local
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO sullair_vehicles (id, interno, patente, marca, modelo, km_actual, vtv_vencimiento, seguro_vencimiento, seguro_poliza, tarjeta_verde, manual)
+            INSERT OR REPLACE INTO sullair_vehicles (id, interno, patente, marca, modelo, km_actual, vtv_vencimiento, seguro_vencimiento, seguro_poliza, tarjeta_verde, manual)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            v_id,
-            data.get("interno", "").strip(),
-            data.get("patente", "").strip().upper(),
-            data.get("marca", "").strip(),
-            data.get("modelo", "").strip(),
-            int(data.get("km_actual", 0)),
-            data.get("vtv_vencimiento", ""),
-            data.get("seguro_vencimiento", ""),
-            data.get("seguro_poliza", ""),
-            1 if data.get("tarjeta_verde", True) else 0,
-            1 if data.get("manual", True) else 0
-        ))
+        """, (v_id, clean_interno, clean_patente, clean_marca, clean_modelo, km_val, vtv_val, seg_val, poliza_val, 1 if tarjeta_v else 0, 1 if manual_v else 0))
         conn.commit()
         conn.close()
         return v_id
 
     def update_vehicle(self, vehicle_id: str, data: Dict[str, Any]) -> bool:
+        update_payload = {}
         fields = []
         values = []
         for k in ["interno", "patente", "marca", "modelo", "km_actual", "vtv_vencimiento", "seguro_vencimiento", "seguro_poliza", "tarjeta_verde", "manual"]:
             if k in data:
-                fields.append(f"{k} = ?")
                 val = data[k]
                 if k in ["tarjeta_verde", "manual"]:
-                    val = 1 if val else 0
+                    val_bool = bool(val)
+                    val_int = 1 if val else 0
+                    update_payload[k] = val_bool
+                    fields.append(f"{k} = ?")
+                    values.append(val_int)
                 elif k == "km_actual":
-                    val = int(val or 0)
-                values.append(val)
-        if not fields:
+                    v_km = int(val or 0)
+                    update_payload[k] = v_km
+                    fields.append(f"{k} = ?")
+                    values.append(v_km)
+                else:
+                    update_payload[k] = val
+                    fields.append(f"{k} = ?")
+                    values.append(val)
+        if not update_payload:
             return False
+
+        if self.use_supabase and self.supabase_client:
+            try:
+                self.supabase_client.table("sullair_vehicles").update(update_payload).eq("id", vehicle_id).execute()
+            except Exception as e:
+                print(f"Supabase update_vehicle error: {e}")
+
         values.append(vehicle_id)
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
@@ -350,7 +472,72 @@ class DatabaseManager:
         insp_id = str(uuid.uuid4())
         nc_count = sum(1 for it in items if it.get("status") == "NC")
         status = "observado" if nc_count > 0 else "pendiente_revision"
-        
+
+        insp_record = {
+            "id": insp_id,
+            "fecha": data.get("fecha", datetime.now().strftime("%Y-%m-%d")),
+            "mes_periodo": data.get("mes_periodo", datetime.now().strftime("%Y-%m")),
+            "user_id": data.get("user_id", ""),
+            "user_name": data.get("user_name", ""),
+            "vehicle_id": data.get("vehicle_id", ""),
+            "interno": data.get("interno", ""),
+            "patente": data.get("patente", ""),
+            "marca": data.get("marca", ""),
+            "modelo": data.get("modelo", ""),
+            "km": int(data.get("km", 0)),
+            "tarjeta_verde_si_no": data.get("tarjeta_verde_si_no", "SI"),
+            "manual_si_no": data.get("manual_si_no", "SI"),
+            "vtv_si_no": data.get("vtv_si_no", "SI"),
+            "vtv_vencimiento": data.get("vtv_vencimiento", ""),
+            "seguro_si_no": data.get("seguro_si_no", "SI"),
+            "seguro_vencimiento": data.get("seguro_vencimiento", ""),
+            "observaciones": data.get("observaciones", ""),
+            "realizo_nombre": data.get("realizo_nombre", ""),
+            "realizo_firma_png": data.get("realizo_firma_png", ""),
+            "responsable_sitio_nombre": data.get("responsable_sitio_nombre", ""),
+            "responsable_sitio_firma_png": data.get("responsable_sitio_firma_png", ""),
+            "status": status,
+            "nc_count": nc_count
+        }
+
+        items_records = []
+        for it in items:
+            items_records.append({
+                "id": str(uuid.uuid4()),
+                "inspection_id": insp_id,
+                "section": it.get("section", ""),
+                "item_name": it.get("item_name", ""),
+                "status": it.get("status", "C"),
+                "has_photo": bool(it.get("has_photo")),
+                "observation": it.get("observation", "")
+            })
+
+        photos_records = []
+        if photos:
+            for p in photos:
+                photos_records.append({
+                    "id": str(uuid.uuid4()),
+                    "inspection_id": insp_id,
+                    "item_name": p.get("item_name", ""),
+                    "file_name": p.get("file_name", ""),
+                    "image_base64": p.get("image_base64", ""),
+                    "caption": p.get("caption", "")
+                })
+
+        # 1. Guardar en Supabase
+        if self.use_supabase and self.supabase_client:
+            try:
+                self.supabase_client.table("sullair_inspections").insert(insp_record).execute()
+                if items_records:
+                    self.supabase_client.table("sullair_inspection_items").insert(items_records).execute()
+                if photos_records:
+                    self.supabase_client.table("sullair_inspection_photos").insert(photos_records).execute()
+                if data.get("vehicle_id") and data.get("km"):
+                    self.supabase_client.table("sullair_vehicles").update({"km_actual": int(data["km"])}).eq("id", data["vehicle_id"]).execute()
+            except Exception as e:
+                print(f"Supabase save_inspection error: {e}")
+
+        # 2. Guardar en SQLite local
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
         cursor.execute("""
@@ -362,66 +549,20 @@ class DatabaseManager:
                 realizo_nombre, realizo_firma_png, responsable_sitio_nombre,
                 responsable_sitio_firma_png, status, nc_count
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            insp_id,
-            data.get("fecha", datetime.now().strftime("%Y-%m-%d")),
-            data.get("mes_periodo", datetime.now().strftime("%Y-%m")),
-            data.get("user_id", ""),
-            data.get("user_name", ""),
-            data.get("vehicle_id", ""),
-            data.get("interno", ""),
-            data.get("patente", ""),
-            data.get("marca", ""),
-            data.get("modelo", ""),
-            int(data.get("km", 0)),
-            data.get("tarjeta_verde_si_no", "SI"),
-            data.get("manual_si_no", "SI"),
-            data.get("vtv_si_no", "SI"),
-            data.get("vtv_vencimiento", ""),
-            data.get("seguro_si_no", "SI"),
-            data.get("seguro_vencimiento", ""),
-            data.get("observaciones", ""),
-            data.get("realizo_nombre", ""),
-            data.get("realizo_firma_png", ""),
-            data.get("responsable_sitio_nombre", ""),
-            data.get("responsable_sitio_firma_png", ""),
-            status,
-            nc_count
-        ))
+        """, tuple(insp_record.values()))
 
-        # Insert items
-        for it in items:
-            it_id = str(uuid.uuid4())
+        for it in items_records:
             cursor.execute("""
                 INSERT INTO sullair_inspection_items (id, inspection_id, section, item_name, status, has_photo, observation)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                it_id,
-                insp_id,
-                it.get("section", ""),
-                it.get("item_name", ""),
-                it.get("status", "C"),
-                1 if it.get("has_photo") else 0,
-                it.get("observation", "")
-            ))
+            """, (it["id"], it["inspection_id"], it["section"], it["item_name"], it["status"], 1 if it["has_photo"] else 0, it["observation"]))
 
-        # Insert photos
-        if photos:
-            for p in photos:
-                p_id = str(uuid.uuid4())
-                cursor.execute("""
-                    INSERT INTO sullair_inspection_photos (id, inspection_id, item_name, file_name, image_base64, caption)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (
-                    p_id,
-                    insp_id,
-                    p.get("item_name", ""),
-                    p.get("file_name", ""),
-                    p.get("image_base64", ""),
-                    p.get("caption", "")
-                ))
+        for p in photos_records:
+            cursor.execute("""
+                INSERT INTO sullair_inspection_photos (id, inspection_id, item_name, file_name, image_base64, caption)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (p["id"], p["inspection_id"], p["item_name"], p["file_name"], p["image_base64"], p["caption"]))
 
-        # Actualizar kilometraje del vehículo si corresponde
         if data.get("vehicle_id") and data.get("km"):
             cursor.execute("UPDATE sullair_vehicles SET km_actual = ? WHERE id = ?", (int(data["km"]), data["vehicle_id"]))
 
@@ -430,13 +571,27 @@ class DatabaseManager:
         return insp_id
 
     def get_inspections(self, user_id: Optional[str] = None, mes_periodo: Optional[str] = None, search: Optional[str] = None) -> List[Dict[str, Any]]:
+        if self.use_supabase and self.supabase_client:
+            try:
+                query = self.supabase_client.table("sullair_inspections").select("*")
+                if user_id:
+                    query = query.eq("user_id", user_id)
+                if mes_periodo:
+                    query = query.eq("mes_periodo", mes_periodo)
+                if search:
+                    query = query.or_(f"patente.ilike.%{search}%,interno.ilike.%{search}%,user_name.ilike.%{search}%")
+                res = query.order("fecha", desc=True).order("created_at", desc=True).execute()
+                if res.data is not None:
+                    return res.data
+            except Exception as e:
+                print(f"Supabase get_inspections fallback: {e}")
+
         conn = sqlite3.connect(DB_FILE)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         
         query = "SELECT * FROM sullair_inspections WHERE 1=1"
         params = []
-        
         if user_id:
             query += " AND user_id = ?"
             params.append(user_id)
@@ -455,6 +610,14 @@ class DatabaseManager:
         return [dict(r) for r in rows]
 
     def get_inspection_by_id(self, inspection_id: str) -> Optional[Dict[str, Any]]:
+        if self.use_supabase and self.supabase_client:
+            try:
+                res = self.supabase_client.table("sullair_inspections").select("*").eq("id", inspection_id).execute()
+                if res.data and len(res.data) > 0:
+                    return res.data[0]
+            except Exception as e:
+                print(f"Supabase get_inspection_by_id fallback: {e}")
+
         conn = sqlite3.connect(DB_FILE)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -464,6 +627,14 @@ class DatabaseManager:
         return dict(row) if row else None
 
     def get_inspection_items(self, inspection_id: str) -> List[Dict[str, Any]]:
+        if self.use_supabase and self.supabase_client:
+            try:
+                res = self.supabase_client.table("sullair_inspection_items").select("*").eq("inspection_id", inspection_id).execute()
+                if res.data:
+                    return res.data
+            except Exception as e:
+                print(f"Supabase get_inspection_items fallback: {e}")
+
         conn = sqlite3.connect(DB_FILE)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -473,6 +644,14 @@ class DatabaseManager:
         return [dict(r) for r in rows]
 
     def get_inspection_photos(self, inspection_id: str) -> List[Dict[str, Any]]:
+        if self.use_supabase and self.supabase_client:
+            try:
+                res = self.supabase_client.table("sullair_inspection_photos").select("*").eq("inspection_id", inspection_id).execute()
+                if res.data:
+                    return res.data
+            except Exception as e:
+                print(f"Supabase get_inspection_photos fallback: {e}")
+
         conn = sqlite3.connect(DB_FILE)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -482,6 +661,16 @@ class DatabaseManager:
         return [dict(r) for r in rows]
 
     def sign_as_responsible(self, inspection_id: str, responsible_name: str, signature_png: str) -> bool:
+        if self.use_supabase and self.supabase_client:
+            try:
+                self.supabase_client.table("sullair_inspections").update({
+                    "responsable_sitio_nombre": responsible_name,
+                    "responsable_sitio_firma_png": signature_png,
+                    "status": "aprobado"
+                }).eq("id", inspection_id).execute()
+            except Exception as e:
+                print(f"Supabase sign_as_responsible error: {e}")
+
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
         cursor.execute("""

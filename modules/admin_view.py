@@ -139,6 +139,62 @@ def render_admin_view(current_user: dict):
                     except Exception as e:
                         st.error(f"Error creando usuario: {e}")
 
+        # Modificar o Eliminar Usuario existente
+        if len(users) > 1:
+            st.markdown("---")
+            st.markdown("### ✏️ Modificar o Eliminar Usuario")
+            user_select_opts = [f"{u['name']} ({u['email']})" for u in users]
+            sel_u_label = st.selectbox("Seleccionar Usuario para Administrar", options=user_select_opts, key="admin_sel_user")
+            sel_u_email = sel_u_label.split("(")[-1].replace(")", "").strip()
+            target_user = next((u for u in users if u["email"] == sel_u_email), None)
+
+            if target_user:
+                col_m1, col_m2 = st.columns(2)
+                with col_m1:
+                    edit_role = st.selectbox(
+                        "Cambiar Rol",
+                        options=["comercial", "gestor_cass", "responsable_flota", "admin"],
+                        index=["comercial", "gestor_cass", "responsable_flota", "admin"].index(target_user["role"]) if target_user["role"] in ["comercial", "gestor_cass", "responsable_flota", "admin"] else 0,
+                        format_func=lambda x: ROLE_NAMES.get(x, x),
+                        key="edit_role"
+                    )
+                    edit_pass = st.text_input("Nueva Contraseña (dejar vacío para no cambiar)", type="password", key="edit_pass")
+                with col_m2:
+                    curr_veh_idx = 0
+                    if target_user.get("assigned_vehicle_id") and target_user["assigned_vehicle_id"] in veh_dict:
+                        target_v_str = veh_dict[target_user["assigned_vehicle_id"]]
+                        for idx, opt in enumerate(veh_select_opts):
+                            if target_v_str.split("(")[0].strip() in opt:
+                                curr_veh_idx = idx
+                                break
+                    edit_veh = st.selectbox("Reasignar Vehículo", options=veh_select_opts, index=curr_veh_idx, key="edit_veh")
+
+                col_btn1, col_btn2 = st.columns([1, 1])
+                with col_btn1:
+                    if st.button("💾 Guardar Cambios en Usuario", key="btn_save_user_edit", type="primary", use_container_width=True):
+                        update_dict = {"role": edit_role}
+                        if edit_pass:
+                            update_dict["password"] = edit_pass
+                        if edit_veh != "(Sin vehículo asignado)":
+                            pat = edit_veh.split("-")[1].split("(")[0].strip()
+                            for v in vehicles:
+                                if v["patente"] == pat:
+                                    update_dict["assigned_vehicle_id"] = v["id"]
+                                    break
+                        else:
+                            update_dict["assigned_vehicle_id"] = None
+
+                        db.update_user(target_user["id"], update_dict)
+                        st.success(f"¡Usuario {target_user['name']} actualizado correctamente!")
+                        st.rerun()
+
+                with col_btn2:
+                    if target_user["id"] != current_user["id"]:
+                        if st.button("🗑️ Eliminar Usuario", key="btn_del_user", type="secondary", use_container_width=True):
+                            db.delete_user(target_user["id"])
+                            st.warning(f"Usuario {target_user['name']} eliminado.")
+                            st.rerun()
+
     # --- TAB 2: FLOTA ---
     with tab_vehicles:
         st.markdown("### Flota de Vehículos")

@@ -43,13 +43,15 @@ def render_pdf_download_block(pdf_bytes: bytes, filename: str, saved_path: str =
 
     # Botón HTML5 directo en Base64 con atributo download forzado (garantiza la extensión .pdf en Chrome/Safari/Edge)
     html_btn = f"""
-    <div style="text-align: center; margin: 10px 0;">
-        <a href="data:application/pdf;base64,{b64_pdf}" download="{clean_name}" target="_blank"
+    <div style="text-align: center; margin: 12px 0;">
+        <a href="data:application/pdf;base64,{b64_pdf}" download="{clean_name}" target="_blank" class="pdf-download-btn"
            style="display: inline-flex; align-items: center; justify-content: center; width: 100%;
                   background-color: #00853E; color: #FFFFFF !important; padding: 14px 20px; text-decoration: none !important;
                   font-weight: 700; font-size: 1.05rem; border-radius: 8px; box-shadow: 0 3px 8px rgba(0,0,0,0.18);
                   text-align: center; border: none; cursor: pointer; transition: background-color 0.2s ease;">
-            📥 Descargar Reporte PDF Oficial ({clean_name})
+            <span style="color: #FFFFFF !important; text-decoration: none !important; font-weight: 700;">
+                📥 Descargar Reporte PDF Oficial ({clean_name})
+            </span>
         </a>
     </div>
     """

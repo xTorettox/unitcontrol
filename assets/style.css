@@ -138,3 +138,36 @@ button[kind="primary"] {
     font-weight: 600 !important;
     border-radius: 8px !important;
 }
+
+/* Botones de Descarga PDF en Verde Institucional */
+a.pdf-download-btn,
+a[download],
+.stMarkdown a[download] {
+    background-color: var(--sullair-green) !important;
+    color: #FFFFFF !important;
+    text-decoration: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-weight: 700 !important;
+    font-size: 1rem !important;
+    border-radius: 8px !important;
+    padding: 12px 20px !important;
+    box-shadow: 0 3px 8px rgba(0, 133, 62, 0.25) !important;
+    transition: all 0.2s ease !important;
+}
+
+a.pdf-download-btn:hover,
+a[download]:hover,
+.stMarkdown a[download]:hover {
+    background-color: var(--sullair-dark-green) !important;
+    color: #FFFFFF !important;
+    box-shadow: 0 4px 12px rgba(0, 90, 42, 0.35) !important;
+}
+
+a.pdf-download-btn span,
+a[download] span,
+.stMarkdown a[download] span {
+    color: #FFFFFF !important;
+    text-decoration: none !important;
+}

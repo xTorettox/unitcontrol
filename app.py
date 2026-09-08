@@ -27,7 +27,7 @@ from modules.admin_view import render_admin_view, render_profile_view
 def render_login_screen():
     # Logo e Identidad Sullair
     logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo_sullair.png")
-    c_l1, c_l2, c_l3 = st.columns([1, 2, 1])
+    c_l1, c_l2, c_l3 = st.columns([1, 1.3, 1])
     with c_l2:
         if os.path.exists(logo_path):
             st.image(logo_path, use_container_width=True)
@@ -46,7 +46,7 @@ def render_login_screen():
 
         with st.container():
             with st.form("login_form"):
-                email_input = st.text_input("Correo electrónico corporativo", placeholder="usuario@sullair.com.ar")
+                email_input = st.text_input("Usuario o Correo Corporativo", placeholder="fcendra o usuario@sullair.com.ar")
                 password_input = st.text_input("Contraseña", type="password", placeholder="••••••••")
                 submit_login = st.form_submit_button("Ingresar al Sistema", type="primary", use_container_width=True)
 
@@ -55,26 +55,7 @@ def render_login_screen():
                         st.success("¡Bienvenido!")
                         st.rerun()
                     else:
-                        st.error("Credenciales incorrectas. Verifique su correo o contraseña.")
-
-        # Acceso Rápido de Demostración para Pruebas
-        with st.expander("🔑 Cuentas Preconfiguradas para Acceso Rápido", expanded=True):
-            st.caption("Seleccioná un perfil para ingresar directamente:")
-            col_d1, col_d2 = st.columns(2)
-            with col_d1:
-                if st.button("👑 Federico Cendra (Admin)", use_container_width=True):
-                    login_user("fcendra@sullair.com.ar", "C4n1ch3r1426")
-                    st.rerun()
-                if st.button("🚙 Lucas Toto (Comercial)", use_container_width=True):
-                    login_user("ltoto@sullair.com.ar", "esmeralda26")
-                    st.rerun()
-            with col_d2:
-                if st.button("📊 Gestor CASS (Auditoría)", use_container_width=True):
-                    login_user("cass@sullair.com.ar", "cass")
-                    st.rerun()
-                if st.button("⚙️ Administrador General", use_container_width=True):
-                    login_user("admin@sullair.com.ar", "admin")
-                    st.rerun()
+                        st.error("Credenciales incorrectas. Verifique su usuario y contraseña.")
 
 
 def main():
