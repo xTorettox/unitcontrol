@@ -520,42 +520,69 @@ def render_checklist_view(user: dict):
                 var parentDoc = window.parent ? window.parent.document : document;
                 var scContainers = parentDoc.querySelectorAll('[data-testid="stSegmentedControl"]');
                 scContainers.forEach(function(sc) {
-                    var buttons = sc.querySelectorAll('button, [role="tab"], [data-baseweb="tab"]');
+                    var buttons = sc.querySelectorAll('button');
                     buttons.forEach(function(btn) {
                         var txt = (btn.innerText || btn.textContent || "").trim().toUpperCase();
                         var isChecked = btn.getAttribute("aria-checked") === "true" || btn.getAttribute("aria-selected") === "true";
                         
-                        // Forzar estilo base del botón inactivo
-                        btn.style.setProperty("border", "1px solid #CBD5E1", "important");
-                        btn.style.setProperty("background-color", "#FFFFFF", "important");
+                        btn.classList.remove('seg-btn-c-active', 'seg-btn-nc-active', 'seg-btn-na-active');
                         
-                        var innerTexts = btn.querySelectorAll('p, span, div');
-
-                        if (isChecked) {
-                            if (txt === "C") {
+                        if (txt === "C") {
+                            btn.setAttribute("data-status", "C");
+                            if (isChecked) {
+                                btn.classList.add('seg-btn-c-active');
                                 btn.style.setProperty("background-color", "#E6F4EA", "important");
                                 btn.style.setProperty("border-color", "#00853E", "important");
-                                innerTexts.forEach(el => el.style.setProperty("color", "#00853E", "important"));
-                            } else if (txt === "NC") {
+                                btn.style.setProperty("color", "#00853E", "important");
+                                var p = btn.querySelector('p, span, div');
+                                if (p) p.style.setProperty("color", "#00853E", "important");
+                            } else {
+                                btn.style.removeProperty("background-color");
+                                btn.style.removeProperty("border-color");
+                                btn.style.removeProperty("color");
+                                var p = btn.querySelector('p, span, div');
+                                if (p) p.style.removeProperty("color");
+                            }
+                        } else if (txt === "NC") {
+                            btn.setAttribute("data-status", "NC");
+                            if (isChecked) {
+                                btn.classList.add('seg-btn-nc-active');
                                 btn.style.setProperty("background-color", "#FEE2E2", "important");
                                 btn.style.setProperty("border-color", "#DC2626", "important");
-                                innerTexts.forEach(el => el.style.setProperty("color", "#DC2626", "important"));
-                            } else if (txt === "NA") {
+                                btn.style.setProperty("color", "#DC2626", "important");
+                                var p = btn.querySelector('p, span, div');
+                                if (p) p.style.setProperty("color", "#DC2626", "important");
+                            } else {
+                                btn.style.removeProperty("background-color");
+                                btn.style.removeProperty("border-color");
+                                btn.style.removeProperty("color");
+                                var p = btn.querySelector('p, span, div');
+                                if (p) p.style.removeProperty("color");
+                            }
+                        } else if (txt === "NA") {
+                            btn.setAttribute("data-status", "NA");
+                            if (isChecked) {
+                                btn.classList.add('seg-btn-na-active');
                                 btn.style.setProperty("background-color", "#F1F5F9", "important");
                                 btn.style.setProperty("border-color", "#64748B", "important");
-                                innerTexts.forEach(el => el.style.setProperty("color", "#475569", "important"));
+                                btn.style.setProperty("color", "#475569", "important");
+                                var p = btn.querySelector('p, span, div');
+                                if (p) p.style.setProperty("color", "#475569", "important");
+                            } else {
+                                btn.style.removeProperty("background-color");
+                                btn.style.removeProperty("border-color");
+                                btn.style.removeProperty("color");
+                                var p = btn.querySelector('p, span, div');
+                                if (p) p.style.removeProperty("color");
                             }
-                        } else {
-                            // Textos de botones no seleccionados a gris
-                            innerTexts.forEach(el => el.style.setProperty("color", "#64748B", "important"));
                         }
                     });
                 });
             } catch(e) {}
         }
 
-        // Correr rápido para ganar la carrera de renderizado
-        setInterval(updateSegmentedControlColors, 100);
+        // Ejecutar periódicamente para mantener sincronía inmediata al hacer click
+        setInterval(updateSegmentedControlColors, 150);
         updateSegmentedControlColors();
 
         function handleKeyDown(e) {
@@ -570,7 +597,6 @@ def render_checklist_view(user: dict):
                     keyBuffer = "";
                     var parentDoc = window.parent ? window.parent.document : document;
                     
-                    // Lógica original restaurada del truco
                     var segmentedControls = parentDoc.querySelectorAll('[data-testid="stSegmentedControl"]');
                     if (segmentedControls && segmentedControls.length > 0) {
                         segmentedControls.forEach(function(sc) {
@@ -603,6 +629,7 @@ def render_checklist_view(user: dict):
     })();
     </script>
     """
+    components.html(cheat_js, height=0, width=0)
 
     # 3. OBSERVACIONES GENERALES
     st.markdown("---")
