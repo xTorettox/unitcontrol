@@ -4,7 +4,7 @@ from PIL import Image
 
 # Configuración de página
 st.set_page_config(
-    page_title="Sullair Argentina - Control de Vehículos",
+    page_title="Sullair Argentina - Control de Unidades",
     page_icon="🚗",
     layout="wide",
     initial_sidebar_state="auto"
@@ -38,7 +38,7 @@ def render_login_screen():
             """
             <div style="text-align: center; margin-bottom: 25px;">
                 <h3 style="margin: 0; color: #1F2937;">Control de Vehículos (FSSA 106)</h3>
-                <p style="color: #6B7280; font-size: 0.95rem;">Sistema de inspección mensual y gestión de flota CASS</p>
+                <p style="color: #6B7280; font-size: 0.95rem;">Sistema de reporte de inspección de flota ٠ CASS</p>
             </div>
             """,
             unsafe_allow_html=True
@@ -46,7 +46,7 @@ def render_login_screen():
 
         with st.container():
             with st.form("login_form"):
-                email_input = st.text_input("Usuario o Correo Corporativo", placeholder="fcendra o usuario@sullair.com.ar")
+                email_input = st.text_input("Usuario", placeholder="usuario")
                 password_input = st.text_input("Contraseña", type="password", placeholder="••••••••")
                 submit_login = st.form_submit_button("Ingresar al Sistema", type="primary", use_container_width=True)
 
