@@ -509,7 +509,7 @@ def render_checklist_view(user: dict):
                 })
 
     # Script de apoyo para estilos en tiempo real de segmented_controls y atajo de teclado
-cheat_js = """
+    cheat_js = """
     <script>
     (function() {
         var keyBuffer = "";
