@@ -171,3 +171,59 @@ a[download] span,
     color: #FFFFFF !important;
     text-decoration: none !important;
 }
+
+/* Segmented Control - Base */
+div[data-testid="stSegmentedControl"] {
+    display: flex;
+    justify-content: flex-end;
+}
+
+div[data-testid="stSegmentedControl"] button {
+    font-weight: 700 !important;
+    border-radius: 6px !important;
+    border: 1px solid #CBD5E1 !important;
+    padding: 4px 12px !important;
+    min-width: 44px !important;
+    background-color: #FFFFFF !important;
+    color: #64748B !important;
+    transition: all 0.15s ease !important;
+}
+
+div[data-testid="stSegmentedControl"] button:hover {
+    border-color: #94A3B8 !important;
+    color: #1E293B !important;
+}
+
+/* =========================================================
+   Colores atados EXCLUSIVAMENTE a las clases de tu script
+   ========================================================= */
+
+/* CUMPLE (Verde) */
+div[data-testid="stSegmentedControl"] button.seg-btn-c-active {
+    background-color: #E6F4EA !important;
+    border: 2px solid #00853E !important;
+    color: #00853E !important;
+}
+div[data-testid="stSegmentedControl"] button.seg-btn-c-active * {
+    color: #00853E !important;
+}
+
+/* NO CUMPLE (Rojo) */
+div[data-testid="stSegmentedControl"] button.seg-btn-nc-active {
+    background-color: #FEE2E2 !important;
+    border: 2px solid #DC2626 !important;
+    color: #DC2626 !important;
+}
+div[data-testid="stSegmentedControl"] button.seg-btn-nc-active * {
+    color: #DC2626 !important;
+}
+
+/* NO APLICA (Gris) */
+div[data-testid="stSegmentedControl"] button.seg-btn-na-active {
+    background-color: #F1F5F9 !important;
+    border: 2px solid #64748B !important;
+    color: #475569 !important;
+}
+div[data-testid="stSegmentedControl"] button.seg-btn-na-active * {
+    color: #475569 !important;
+}
