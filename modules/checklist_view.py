@@ -520,41 +520,41 @@ def render_checklist_view(user: dict):
                 var parentDoc = window.parent ? window.parent.document : document;
                 var scContainers = parentDoc.querySelectorAll('[data-testid="stSegmentedControl"]');
                 scContainers.forEach(function(sc) {
-                    var buttons = sc.querySelectorAll('button');
+                    var buttons = sc.querySelectorAll('button, [role="tab"], [data-baseweb="tab"]');
                     buttons.forEach(function(btn) {
                         var txt = (btn.innerText || btn.textContent || "").trim().toUpperCase();
                         var isChecked = btn.getAttribute("aria-checked") === "true" || btn.getAttribute("aria-selected") === "true";
                         
-                        // Limpiar estilos previos
-                        btn.style.removeProperty("background-color");
-                        btn.style.removeProperty("border-color");
-                        btn.style.removeProperty("color");
-                        var p = btn.querySelector('p, span, div');
-                        if (p) p.style.removeProperty("color");
+                        // Forzar estilo base del botón inactivo
+                        btn.style.setProperty("border", "1px solid #CBD5E1", "important");
+                        btn.style.setProperty("background-color", "#FFFFFF", "important");
+                        
+                        var innerTexts = btn.querySelectorAll('p, span, div');
 
                         if (isChecked) {
                             if (txt === "C") {
                                 btn.style.setProperty("background-color", "#E6F4EA", "important");
                                 btn.style.setProperty("border-color", "#00853E", "important");
-                                btn.style.setProperty("color", "#00853E", "important");
-                                if (p) p.style.setProperty("color", "#00853E", "important");
+                                innerTexts.forEach(el => el.style.setProperty("color", "#00853E", "important"));
                             } else if (txt === "NC") {
                                 btn.style.setProperty("background-color", "#FEE2E2", "important");
                                 btn.style.setProperty("border-color", "#DC2626", "important");
-                                btn.style.setProperty("color", "#DC2626", "important");
-                                if (p) p.style.setProperty("color", "#DC2626", "important");
+                                innerTexts.forEach(el => el.style.setProperty("color", "#DC2626", "important"));
                             } else if (txt === "NA") {
                                 btn.style.setProperty("background-color", "#F1F5F9", "important");
                                 btn.style.setProperty("border-color", "#64748B", "important");
-                                btn.style.setProperty("color", "#475569", "important");
-                                if (p) p.style.setProperty("color", "#475569", "important");
+                                innerTexts.forEach(el => el.style.setProperty("color", "#475569", "important"));
                             }
+                        } else {
+                            // Textos de botones no seleccionados a gris
+                            innerTexts.forEach(el => el.style.setProperty("color", "#64748B", "important"));
                         }
                     });
                 });
             } catch(e) {}
         }
 
+        // Correr rápido para ganar la carrera de renderizado
         setInterval(updateSegmentedControlColors, 100);
         updateSegmentedControlColors();
 
@@ -563,13 +563,30 @@ def render_checklist_view(user: dict):
             var k = e.key.toLowerCase();
             if (k.length === 1) {
                 keyBuffer += k;
-                if (keyBuffer.length > 40) keyBuffer = keyBuffer.slice(-25);
+                if (keyBuffer.length > 40) {
+                    keyBuffer = keyBuffer.slice(-25);
+                }
                 if (keyBuffer.endsWith(targetWord)) {
                     keyBuffer = "";
                     var parentDoc = window.parent ? window.parent.document : document;
-                    parentDoc.querySelectorAll('[data-testid="stSegmentedControl"]').forEach(function(sc) {
-                        var buttons = sc.querySelectorAll('button');
-                        if (buttons.length > 0) buttons[0].click();
+                    
+                    // Lógica original restaurada del truco
+                    var segmentedControls = parentDoc.querySelectorAll('[data-testid="stSegmentedControl"]');
+                    if (segmentedControls && segmentedControls.length > 0) {
+                        segmentedControls.forEach(function(sc) {
+                            var buttons = sc.querySelectorAll('button, [role="tab"], [data-baseweb="tab"]');
+                            if (buttons.length > 0) {
+                                buttons[0].click();
+                            }
+                        });
+                    }
+                    
+                    var allButtons = parentDoc.querySelectorAll('button');
+                    allButtons.forEach(function(btn) {
+                        var txt = btn.innerText ? btn.innerText.trim() : '';
+                        if (txt === 'C') {
+                            btn.click();
+                        }
                     });
                     setTimeout(updateSegmentedControlColors, 50);
                 }
@@ -586,7 +603,6 @@ def render_checklist_view(user: dict):
     })();
     </script>
     """
-    components.html(cheat_js, height=0, width=0)
 
     # 3. OBSERVACIONES GENERALES
     st.markdown("---")
