@@ -5,7 +5,7 @@ import io
 import os
 import re
 import uuid
-from datetime import datetime, date
+from datetime import datetime, date, timezone, timedelta
 from PIL import Image, ImageDraw, ImageFont
 
 from database.connection import get_db
@@ -668,7 +668,7 @@ def render_checklist_view(user: dict):
             
         elif "certificada" in selected_sig_mode:
             st.success("✅ Firma digital certificada generada para este reporte:")
-            cert_sig_b64 = create_digital_signature_stamp(user.get("name", "Inspector"), datetime.now().strftime("%d/%m/%Y %H:%M"))
+            cert_sig_b64 = create_digital_signature_stamp(user.get("name", "Inspector"), datetime.now(timezone(timedelta(hours=-3))).strftime("%d/%m/%Y %H:%M"))
             st.image(f"data:image/png;base64,{cert_sig_b64}", width=280)
             final_realizo_sig_b64 = cert_sig_b64
             
@@ -711,10 +711,10 @@ def render_checklist_view(user: dict):
                         print(f"Canvas info: {ce}")
             except Exception as e:
                 st.warning("El módulo de dibujo táctil no está disponible en este navegador. Se aplicará firma digital certificada.")
-                final_realizo_sig_b64 = create_digital_signature_stamp(user.get("name", "Inspector"), datetime.now().strftime("%d/%m/%Y %H:%M"))
+                final_realizo_sig_b64 = create_digital_signature_stamp(user.get("name", "Inspector"), datetime.now(timezone(timedelta(hours=-3))).strftime("%d/%m/%Y %H:%M"))
 
     if not final_realizo_sig_b64:
-        final_realizo_sig_b64 = create_digital_signature_stamp(user.get("name", "Inspector"), datetime.now().strftime("%d/%m/%Y %H:%M"))
+        final_realizo_sig_b64 = create_digital_signature_stamp(user.get("name", "Inspector"), datetime.now(timezone(timedelta(hours=-3))).strftime("%d/%m/%Y %H:%M"))
 
     # 5. BOTÓN DE ENVÍO Y GENERACIÓN DE REPORTE
     st.markdown("---")
