@@ -172,7 +172,7 @@ a[download] span,
     text-decoration: none !important;
 }
 
-/* Segmented Control - Base */
+/* Segmented Control - Colores exactos para C (Verde), NC (Rojo), NA (Gris) */
 div[data-testid="stSegmentedControl"] {
     display: flex;
     justify-content: flex-end;
@@ -189,53 +189,57 @@ div[data-testid="stSegmentedControl"] button {
     transition: all 0.15s ease !important;
 }
 
+/* Estado Inactivo - Hover */
 div[data-testid="stSegmentedControl"] button:hover {
     border-color: #94A3B8 !important;
     color: #1E293B !important;
 }
 
-/* =========================================================
-   COLORES ATADOS A LOS ATRIBUTOS DE TU JS 
-   ========================================================= */
-
-/* CUMPLE (C) -> VERDE */
-div[data-testid="stSegmentedControl"] button[data-status="C"][aria-checked="true"],
-div[data-testid="stSegmentedControl"] button[data-status="C"][aria-selected="true"],
-div[data-testid="stSegmentedControl"] button.seg-btn-c-active {
+/* Estado Activo para Cumple (C - 1er botón / Verde) */
+div[data-testid="stSegmentedControl"] [role="radiogroup"] > button:nth-child(1)[aria-checked="true"],
+div[data-testid="stSegmentedControl"] button:nth-of-type(1)[aria-checked="true"],
+div[data-testid="stSegmentedControl"] button:first-child[aria-checked="true"],
+div[data-testid="stSegmentedControl"] button.seg-btn-c-active,
+button[data-status="C"][aria-checked="true"] {
     background-color: #E6F4EA !important;
     border: 2px solid #00853E !important;
     color: #00853E !important;
 }
-div[data-testid="stSegmentedControl"] button[data-status="C"][aria-checked="true"] *,
-div[data-testid="stSegmentedControl"] button[data-status="C"][aria-selected="true"] *,
+div[data-testid="stSegmentedControl"] [role="radiogroup"] > button:nth-child(1)[aria-checked="true"] *,
+div[data-testid="stSegmentedControl"] button:nth-of-type(1)[aria-checked="true"] *,
+div[data-testid="stSegmentedControl"] button:first-child[aria-checked="true"] *,
 div[data-testid="stSegmentedControl"] button.seg-btn-c-active * {
     color: #00853E !important;
 }
 
-/* NO CUMPLE (NC) -> ROJO */
-div[data-testid="stSegmentedControl"] button[data-status="NC"][aria-checked="true"],
-div[data-testid="stSegmentedControl"] button[data-status="NC"][aria-selected="true"],
-div[data-testid="stSegmentedControl"] button.seg-btn-nc-active {
+/* Estado Activo para No Cumple (NC - 2do botón / Rojo) */
+div[data-testid="stSegmentedControl"] [role="radiogroup"] > button:nth-child(2)[aria-checked="true"],
+div[data-testid="stSegmentedControl"] button:nth-of-type(2)[aria-checked="true"],
+div[data-testid="stSegmentedControl"] button.seg-btn-nc-active,
+button[data-status="NC"][aria-checked="true"] {
     background-color: #FEE2E2 !important;
     border: 2px solid #DC2626 !important;
     color: #DC2626 !important;
 }
-div[data-testid="stSegmentedControl"] button[data-status="NC"][aria-checked="true"] *,
-div[data-testid="stSegmentedControl"] button[data-status="NC"][aria-selected="true"] *,
+div[data-testid="stSegmentedControl"] [role="radiogroup"] > button:nth-child(2)[aria-checked="true"] *,
+div[data-testid="stSegmentedControl"] button:nth-of-type(2)[aria-checked="true"] *,
 div[data-testid="stSegmentedControl"] button.seg-btn-nc-active * {
     color: #DC2626 !important;
 }
 
-/* NO APLICA (NA) -> GRIS */
-div[data-testid="stSegmentedControl"] button[data-status="NA"][aria-checked="true"],
-div[data-testid="stSegmentedControl"] button[data-status="NA"][aria-selected="true"],
-div[data-testid="stSegmentedControl"] button.seg-btn-na-active {
+/* Estado Activo para No Aplica (NA - 3er botón / Gris) */
+div[data-testid="stSegmentedControl"] [role="radiogroup"] > button:nth-child(3)[aria-checked="true"],
+div[data-testid="stSegmentedControl"] button:nth-of-type(3)[aria-checked="true"],
+div[data-testid="stSegmentedControl"] button:last-child[aria-checked="true"],
+div[data-testid="stSegmentedControl"] button.seg-btn-na-active,
+button[data-status="NA"][aria-checked="true"] {
     background-color: #F1F5F9 !important;
     border: 2px solid #64748B !important;
     color: #475569 !important;
 }
-div[data-testid="stSegmentedControl"] button[data-status="NA"][aria-checked="true"] *,
-div[data-testid="stSegmentedControl"] button[data-status="NA"][aria-selected="true"] *,
+div[data-testid="stSegmentedControl"] [role="radiogroup"] > button:nth-child(3)[aria-checked="true"] *,
+div[data-testid="stSegmentedControl"] button:nth-of-type(3)[aria-checked="true"] *,
+div[data-testid="stSegmentedControl"] button:last-child[aria-checked="true"] *,
 div[data-testid="stSegmentedControl"] button.seg-btn-na-active * {
     color: #475569 !important;
 }

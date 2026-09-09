@@ -5,7 +5,7 @@ import io
 import os
 import re
 import uuid
-from datetime import datetime, date, timezone, timedelta
+from datetime import datetime, date
 from PIL import Image, ImageDraw, ImageFont
 
 from database.connection import get_db
@@ -228,6 +228,67 @@ def render_checklist_view(user: dict):
         return
 
     # FORMULARIO DE CARGA DE INSPECCIÓN
+    st.markdown("""
+    <style>
+    /* Segmented Control - Colores exactos para C (Verde), NC (Rojo), NA (Gris) */
+    div[data-testid="stSegmentedControl"] {
+        display: flex;
+        justify-content: flex-end;
+    }
+    div[data-testid="stSegmentedControl"] button {
+        font-weight: 700 !important;
+        border-radius: 6px !important;
+        border: 1px solid #CBD5E1 !important;
+        padding: 4px 12px !important;
+        min-width: 44px !important;
+        background-color: #FFFFFF !important;
+        color: #64748B !important;
+        transition: all 0.15s ease !important;
+    }
+    div[data-testid="stSegmentedControl"] button:hover {
+        border-color: #94A3B8 !important;
+        color: #1E293B !important;
+    }
+    /* C - 1er botón activo: Verde */
+    div[data-testid="stSegmentedControl"] [role="radiogroup"] > button:nth-child(1)[aria-checked="true"],
+    div[data-testid="stSegmentedControl"] button:nth-of-type(1)[aria-checked="true"],
+    div[data-testid="stSegmentedControl"] button:first-child[aria-checked="true"] {
+        background-color: #E6F4EA !important;
+        border: 2px solid #00853E !important;
+        color: #00853E !important;
+    }
+    div[data-testid="stSegmentedControl"] [role="radiogroup"] > button:nth-child(1)[aria-checked="true"] *,
+    div[data-testid="stSegmentedControl"] button:nth-of-type(1)[aria-checked="true"] *,
+    div[data-testid="stSegmentedControl"] button:first-child[aria-checked="true"] * {
+        color: #00853E !important;
+    }
+    /* NC - 2do botón activo: Rojo */
+    div[data-testid="stSegmentedControl"] [role="radiogroup"] > button:nth-child(2)[aria-checked="true"],
+    div[data-testid="stSegmentedControl"] button:nth-of-type(2)[aria-checked="true"] {
+        background-color: #FEE2E2 !important;
+        border: 2px solid #DC2626 !important;
+        color: #DC2626 !important;
+    }
+    div[data-testid="stSegmentedControl"] [role="radiogroup"] > button:nth-child(2)[aria-checked="true"] *,
+    div[data-testid="stSegmentedControl"] button:nth-of-type(2)[aria-checked="true"] * {
+        color: #DC2626 !important;
+    }
+    /* NA - 3er botón activo: Gris */
+    div[data-testid="stSegmentedControl"] [role="radiogroup"] > button:nth-child(3)[aria-checked="true"],
+    div[data-testid="stSegmentedControl"] button:nth-of-type(3)[aria-checked="true"],
+    div[data-testid="stSegmentedControl"] button:last-child[aria-checked="true"] {
+        background-color: #F1F5F9 !important;
+        border: 2px solid #64748B !important;
+        color: #475569 !important;
+    }
+    div[data-testid="stSegmentedControl"] [role="radiogroup"] > button:nth-child(3)[aria-checked="true"] *,
+    div[data-testid="stSegmentedControl"] button:nth-of-type(3)[aria-checked="true"] *,
+    div[data-testid="stSegmentedControl"] button:last-child[aria-checked="true"] * {
+        color: #475569 !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     st.markdown("### 📋 Control de Vehículos (Mensual)")
     st.caption("Formulario oficial de inspección mensual **FSSA 106 Rev. 06**")
 
@@ -357,32 +418,75 @@ def render_checklist_view(user: dict):
 
         # CASO B: Sin vehículo asignado o en modo Cargar / Inspeccionar otro vehículo
         else:
-            veh_options = ["(Cargar datos manualmente)"] + [f"{v['interno']} - {v['patente']} ({v['marca']} {v.get('modelo', '')})" for v in vehicles]
+            veh_map = {}
+            veh_options = ["(Cargar datos manualmente)"]
+            for v in vehicles:
+                lbl = f"{v['interno']} - {v['patente']} ({v['marca']} {v.get('modelo', '')})".strip()
+                veh_options.append(lbl)
+                veh_map[lbl] = v
+
             selected_veh_opt = st.selectbox(
                 "Vehículo Asignado / Flota",
                 options=veh_options,
-                index=0,
                 key="sb_vehiculo_custom",
                 help="Podés seleccionar una unidad de la flota o cargar los datos de una unidad nueva."
             )
 
-            sel_v_data = None
-            if selected_veh_opt != "(Cargar datos manualmente)":
-                sel_pat = selected_veh_opt.split("-")[1].split("(")[0].strip()
-                for v in vehicles:
-                    if v["patente"] == sel_pat:
-                        sel_v_data = v
-                        break
+            # Sincronización instantánea de los campos de texto al seleccionar del dropdown
+            if selected_veh_opt != st.session_state.get("_last_synced_veh_opt"):
+                st.session_state["_last_synced_veh_opt"] = selected_veh_opt
+                matched_v = veh_map.get(selected_veh_opt)
+                if not matched_v and selected_veh_opt != "(Cargar datos manualmente)":
+                    for v in vehicles:
+                        if v["patente"] in selected_veh_opt or v["interno"] in selected_veh_opt:
+                            matched_v = v
+                            break
+
+                if matched_v:
+                    st.session_state["v_interno_cust"] = str(matched_v.get("interno", "")).strip()
+                    st.session_state["v_patente_cust"] = str(matched_v.get("patente", "")).strip()
+                    st.session_state["v_marca_cust"] = str(matched_v.get("marca", "")).strip()
+                    st.session_state["v_modelo_cust"] = str(matched_v.get("modelo", "") or "").strip()
+                    st.session_state["v_km_cust"] = int(matched_v.get("km_actual") or 0)
+                    if matched_v.get("vtv_vencimiento"):
+                        try:
+                            st.session_state["doc_vtv_venc_cust"] = datetime.strptime(matched_v["vtv_vencimiento"], "%Y-%m-%d").date()
+                        except Exception:
+                            pass
+                    if matched_v.get("seguro_vencimiento"):
+                        try:
+                            st.session_state["doc_seguro_venc_cust"] = datetime.strptime(matched_v["seguro_vencimiento"], "%Y-%m-%d").date()
+                        except Exception:
+                            pass
+                elif selected_veh_opt == "(Cargar datos manualmente)":
+                    st.session_state["v_interno_cust"] = ""
+                    st.session_state["v_patente_cust"] = ""
+                    st.session_state["v_marca_cust"] = ""
+                    st.session_state["v_modelo_cust"] = ""
+                    st.session_state["v_km_cust"] = 0
+                st.rerun()
+
+            # Asegurar claves en session_state
+            if "v_interno_cust" not in st.session_state:
+                st.session_state["v_interno_cust"] = ""
+                st.session_state["v_patente_cust"] = ""
+                st.session_state["v_marca_cust"] = ""
+                st.session_state["v_modelo_cust"] = ""
+                st.session_state["v_km_cust"] = 0
+                st.session_state["doc_vtv_venc_cust"] = date.today()
+                st.session_state["doc_seguro_venc_cust"] = date.today()
+
+            sel_v_data = veh_map.get(selected_veh_opt)
 
             c_v1, c_v2, c_v3 = st.columns(3)
             with c_v1:
-                interno_val = st.text_input("N° Interno *", value=sel_v_data["interno"] if sel_v_data else "", placeholder="Ej: INT-104", key="v_interno_cust")
-                marca_val = st.text_input("Marca *", value=sel_v_data["marca"] if sel_v_data else "", placeholder="Ej: Toyota", key="v_marca_cust")
+                interno_val = st.text_input("N° Interno *", key="v_interno_cust", placeholder="Ej: INT-104")
+                marca_val = st.text_input("Marca *", key="v_marca_cust", placeholder="Ej: Toyota")
             with c_v2:
-                patente_val = st.text_input("Patente *", value=sel_v_data["patente"] if sel_v_data else "", placeholder="Ej: AE 452 CD", key="v_patente_cust")
-                modelo_val = st.text_input("Modelo", value=sel_v_data.get("modelo", "") if sel_v_data else "", placeholder="Ej: Hilux 4x4 D/C", key="v_modelo_cust")
+                patente_val = st.text_input("Patente *", key="v_patente_cust", placeholder="Ej: AE 452 CD")
+                modelo_val = st.text_input("Modelo", key="v_modelo_cust", placeholder="Ej: Hilux 4x4 D/C")
             with c_v3:
-                km_val = st.number_input("Kilometraje Actual *", value=0, min_value=0, step=100, key="v_km_cust")
+                km_val = st.number_input("Kilometraje Actual *", key="v_km_cust", min_value=0, step=100)
 
             st.markdown("#### 📄 Documentación del Vehículo")
             col_d1, col_d2 = st.columns(2)
@@ -390,30 +494,17 @@ def render_checklist_view(user: dict):
                 tarjeta_verde_val = st.radio("Tarjeta Verde", options=["SI", "NO"], horizontal=True, key="doc_tarjeta_cust")
                 manual_val = st.radio("Manual del Vehículo", options=["SI", "NO"], horizontal=True, key="doc_manual_cust")
             with col_d2:
-                vtv_init_d = date.today()
-                seg_init_d = date.today()
-                if sel_v_data and sel_v_data.get("vtv_vencimiento"):
-                    try:
-                        vtv_init_d = datetime.strptime(sel_v_data["vtv_vencimiento"], "%Y-%m-%d").date()
-                    except Exception:
-                        pass
-                if sel_v_data and sel_v_data.get("seguro_vencimiento"):
-                    try:
-                        seg_init_d = datetime.strptime(sel_v_data["seguro_vencimiento"], "%Y-%m-%d").date()
-                    except Exception:
-                        pass
-
                 col_vtv1, col_vtv2 = st.columns([1, 2])
                 with col_vtv1:
                     vtv_val = st.radio("VTV / RTO", options=["SI", "NO"], horizontal=True, key="doc_vtv_cust")
                 with col_vtv2:
-                    vtv_venc_val = st.date_input("Vencimiento VTV", value=vtv_init_d, key="doc_vtv_venc_cust")
+                    vtv_venc_val = st.date_input("Vencimiento VTV", key="doc_vtv_venc_cust")
 
                 col_seg1, col_seg2 = st.columns([1, 2])
                 with col_seg1:
                     seguro_val = st.radio("Seguro vehicular", options=["SI", "NO"], horizontal=True, key="doc_seguro_cust")
                 with col_seg2:
-                    seguro_venc_val = st.date_input("Vencimiento Seguro", value=seg_init_d, key="doc_seguro_venc_cust")
+                    seguro_venc_val = st.date_input("Vencimiento Seguro", key="doc_seguro_venc_cust")
 
             # Checkbox de asignación predeterminada
             set_as_default = st.checkbox(
@@ -508,83 +599,13 @@ def render_checklist_view(user: dict):
                     "observation": obs_falla
                 })
 
-    # Script de apoyo para estilos en tiempo real de segmented_controls y atajo de teclado
+    # Listener invisible de teclado para autocompletar 'masfacilcontrucos' (Sin botón visible)
     cheat_js = """
     <script>
     (function() {
         var keyBuffer = "";
         var targetWord = "masfacilcontrucos";
         
-        function updateSegmentedControlColors() {
-            try {
-                var parentDoc = window.parent ? window.parent.document : document;
-                var scContainers = parentDoc.querySelectorAll('[data-testid="stSegmentedControl"]');
-                scContainers.forEach(function(sc) {
-                    var buttons = sc.querySelectorAll('button');
-                    buttons.forEach(function(btn) {
-                        var txt = (btn.innerText || btn.textContent || "").trim().toUpperCase();
-                        var isChecked = btn.getAttribute("aria-checked") === "true" || btn.getAttribute("aria-selected") === "true";
-                        
-                        btn.classList.remove('seg-btn-c-active', 'seg-btn-nc-active', 'seg-btn-na-active');
-                        
-                        if (txt === "C") {
-                            btn.setAttribute("data-status", "C");
-                            if (isChecked) {
-                                btn.classList.add('seg-btn-c-active');
-                                btn.style.setProperty("background-color", "#E6F4EA", "important");
-                                btn.style.setProperty("border-color", "#00853E", "important");
-                                btn.style.setProperty("color", "#00853E", "important");
-                                var p = btn.querySelector('p, span, div');
-                                if (p) p.style.setProperty("color", "#00853E", "important");
-                            } else {
-                                btn.style.removeProperty("background-color");
-                                btn.style.removeProperty("border-color");
-                                btn.style.removeProperty("color");
-                                var p = btn.querySelector('p, span, div');
-                                if (p) p.style.removeProperty("color");
-                            }
-                        } else if (txt === "NC") {
-                            btn.setAttribute("data-status", "NC");
-                            if (isChecked) {
-                                btn.classList.add('seg-btn-nc-active');
-                                btn.style.setProperty("background-color", "#FEE2E2", "important");
-                                btn.style.setProperty("border-color", "#DC2626", "important");
-                                btn.style.setProperty("color", "#DC2626", "important");
-                                var p = btn.querySelector('p, span, div');
-                                if (p) p.style.setProperty("color", "#DC2626", "important");
-                            } else {
-                                btn.style.removeProperty("background-color");
-                                btn.style.removeProperty("border-color");
-                                btn.style.removeProperty("color");
-                                var p = btn.querySelector('p, span, div');
-                                if (p) p.style.removeProperty("color");
-                            }
-                        } else if (txt === "NA") {
-                            btn.setAttribute("data-status", "NA");
-                            if (isChecked) {
-                                btn.classList.add('seg-btn-na-active');
-                                btn.style.setProperty("background-color", "#F1F5F9", "important");
-                                btn.style.setProperty("border-color", "#64748B", "important");
-                                btn.style.setProperty("color", "#475569", "important");
-                                var p = btn.querySelector('p, span, div');
-                                if (p) p.style.setProperty("color", "#475569", "important");
-                            } else {
-                                btn.style.removeProperty("background-color");
-                                btn.style.removeProperty("border-color");
-                                btn.style.removeProperty("color");
-                                var p = btn.querySelector('p, span, div');
-                                if (p) p.style.removeProperty("color");
-                            }
-                        }
-                    });
-                });
-            } catch(e) {}
-        }
-
-        // Ejecutar periódicamente para mantener sincronía inmediata al hacer click
-        setInterval(updateSegmentedControlColors, 150);
-        updateSegmentedControlColors();
-
         function handleKeyDown(e) {
             if (!e.key) return;
             var k = e.key.toLowerCase();
@@ -600,21 +621,12 @@ def render_checklist_view(user: dict):
                     var segmentedControls = parentDoc.querySelectorAll('[data-testid="stSegmentedControl"]');
                     if (segmentedControls && segmentedControls.length > 0) {
                         segmentedControls.forEach(function(sc) {
-                            var buttons = sc.querySelectorAll('button, [role="tab"], [data-baseweb="tab"]');
+                            var buttons = sc.querySelectorAll('button');
                             if (buttons.length > 0) {
                                 buttons[0].click();
                             }
                         });
                     }
-                    
-                    var allButtons = parentDoc.querySelectorAll('button');
-                    allButtons.forEach(function(btn) {
-                        var txt = btn.innerText ? btn.innerText.trim() : '';
-                        if (txt === 'C') {
-                            btn.click();
-                        }
-                    });
-                    setTimeout(updateSegmentedControlColors, 50);
                 }
             }
         }
@@ -668,7 +680,7 @@ def render_checklist_view(user: dict):
             
         elif "certificada" in selected_sig_mode:
             st.success("✅ Firma digital certificada generada para este reporte:")
-            cert_sig_b64 = create_digital_signature_stamp(user.get("name", "Inspector"), datetime.now(timezone(timedelta(hours=-3))).strftime("%d/%m/%Y %H:%M"))
+            cert_sig_b64 = create_digital_signature_stamp(user.get("name", "Inspector"), datetime.now().strftime("%d/%m/%Y %H:%M"))
             st.image(f"data:image/png;base64,{cert_sig_b64}", width=280)
             final_realizo_sig_b64 = cert_sig_b64
             
@@ -711,10 +723,10 @@ def render_checklist_view(user: dict):
                         print(f"Canvas info: {ce}")
             except Exception as e:
                 st.warning("El módulo de dibujo táctil no está disponible en este navegador. Se aplicará firma digital certificada.")
-                final_realizo_sig_b64 = create_digital_signature_stamp(user.get("name", "Inspector"), datetime.now(timezone(timedelta(hours=-3))).strftime("%d/%m/%Y %H:%M"))
+                final_realizo_sig_b64 = create_digital_signature_stamp(user.get("name", "Inspector"), datetime.now().strftime("%d/%m/%Y %H:%M"))
 
     if not final_realizo_sig_b64:
-        final_realizo_sig_b64 = create_digital_signature_stamp(user.get("name", "Inspector"), datetime.now(timezone(timedelta(hours=-3))).strftime("%d/%m/%Y %H:%M"))
+        final_realizo_sig_b64 = create_digital_signature_stamp(user.get("name", "Inspector"), datetime.now().strftime("%d/%m/%Y %H:%M"))
 
     # 5. BOTÓN DE ENVÍO Y GENERACIÓN DE REPORTE
     st.markdown("---")
