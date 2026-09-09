@@ -1,8 +1,7 @@
 import streamlit as st
 import base64
 import pandas as pd
-from datetime import date, datetime
-
+from datetime import date, datetime, timezone, timedelta
 from database.connection import get_db
 from modules.auth import ROLE_NAMES
 from modules.checklist_view import create_digital_signature_stamp
@@ -60,7 +59,7 @@ def render_profile_view(current_user: dict):
 
     with tab_cert:
         st.caption("Podés generar un sello digital certificado oficial de Sullair Argentina para firmar automáticamente:")
-        cert_preview_b64 = create_digital_signature_stamp(current_user["name"], datetime.now().strftime("%d/%m/%Y %H:%M"))
+        cert_preview_b64 = create_digital_signature_stamp(current_user["name"], datetime.now(timezone(timedelta(hours=-3))).strftime("%d/%m/%Y %H:%M"))
         st.image(f"data:image/png;base64,{cert_preview_b64}", width=320, caption="Vista previa del Sello Certificado")
         if st.button("🛡️ Activar este Sello Certificado en Mi Perfil", type="primary", key="btn_save_cert_sig"):
             db.update_user(current_user["id"], {"signature_png": cert_preview_b64})
