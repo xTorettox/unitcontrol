@@ -3,8 +3,103 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 import streamlit as st
+from database.connection import get_db
+
+
+def get_effective_smtp_config() -> Dict[str, Any]:
+    """
+    Obtiene la configuración SMTP activa priorizando:
+    1. Base de datos (configurada por Administrador en el panel).
+    2. Streamlit Secrets (.streamlit/secrets.toml).
+    3. Variables de entorno.
+    """
+    db = get_db()
+    db_config = db.get_smtp_config()
+    if db_config and db_config.get("smtp_server") and db_config.get("smtp_user"):
+        return db_config
+
+    # Fallback a st.secrets
+    try:
+        if hasattr(st, "secrets") and "email" in st.secrets:
+            sec = st.secrets["email"]
+            return {
+                "smtp_server": sec.get("smtp_server", ""),
+                "smtp_port": int(sec.get("smtp_port", 587)),
+                "smtp_user": sec.get("smtp_user", ""),
+                "smtp_password": sec.get("smtp_password", ""),
+                "smtp_from": sec.get("smtp_from", sec.get("smtp_user", "")),
+                "sender_name": sec.get("sender_name", "Sullair Flota"),
+                "use_tls": sec.get("use_tls", True)
+            }
+    except Exception:
+        pass
+
+    # Fallback a variables de entorno
+    return {
+        "smtp_server": os.environ.get("SMTP_SERVER", ""),
+        "smtp_port": int(os.environ.get("SMTP_PORT", 587)),
+        "smtp_user": os.environ.get("SMTP_USER", ""),
+        "smtp_password": os.environ.get("SMTP_PASSWORD", ""),
+        "smtp_from": os.environ.get("SMTP_FROM", os.environ.get("SMTP_USER", "")),
+        "sender_name": os.environ.get("SMTP_SENDER_NAME", "Sullair Flota"),
+        "use_tls": True
+    }
+
+
+def send_test_email(to_email: str, config: Dict[str, Any] = None) -> Tuple[bool, str]:
+    """Envía un correo de prueba para validar la configuración SMTP."""
+    cfg = config or get_effective_smtp_config()
+    server_addr = cfg.get("smtp_server", "").strip()
+    port = int(cfg.get("smtp_port") or 587)
+    user = cfg.get("smtp_user", "").strip()
+    pwd = cfg.get("smtp_password", "")
+    from_addr = (cfg.get("smtp_from") or user).strip()
+    sender_name = cfg.get("sender_name") or "Sullair Argentina - Flota"
+    use_tls = cfg.get("use_tls", True)
+
+    if not server_addr or not user or not pwd:
+        return False, "Complete los campos obligatorios de Servidor, Usuario y Contraseña."
+
+    try:
+        msg = MIMEMultipart()
+        msg["From"] = f"{sender_name} <{from_addr}>"
+        msg["To"] = to_email
+        msg["Subject"] = "🧪 Prueba de Configuración de Correo - Sullair Flota FSSA 106"
+        
+        body = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; color: #1e293b; padding: 20px;">
+            <div style="max-width: 500px; border: 1px solid #86efac; background: #f0fdf4; border-radius: 8px; padding: 20px;">
+                <h3 style="color: #166534; margin-top: 0;">✅ Configuración SMTP Exitosa</h3>
+                <p>Este es un correo de prueba enviado desde el sistema de <strong>Control de Vehículos Sullair Argentina</strong>.</p>
+                <p style="font-size: 0.9rem; color: #374151;">
+                    <strong>Servidor:</strong> <code>{server_addr}:{port}</code><br/>
+                    <strong>Casilla Emisora:</strong> <code>{from_addr}</code>
+                </p>
+                <p style="font-size: 0.85rem; color: #15803d; margin-bottom: 0;">
+                    La casilla de correos está lista para emitir notificaciones automáticas y reportes FSSA 106.
+                </p>
+            </div>
+        </body>
+        </html>
+        """
+        msg.attach(MIMEText(body, "html"))
+
+        if port == 465:
+            server = smtplib.SMTP_SSL(server_addr, port, timeout=12)
+        else:
+            server = smtplib.SMTP(server_addr, port, timeout=12)
+            if use_tls:
+                server.starttls()
+
+        server.login(user, pwd)
+        server.sendmail(from_addr, [to_email], msg.as_string())
+        server.quit()
+        return True, f"¡Correo de prueba enviado con éxito a {to_email}!"
+    except Exception as e:
+        return False, f"Error conectando al servidor SMTP: {str(e)}"
 
 
 def send_inspection_email(
@@ -14,49 +109,33 @@ def send_inspection_email(
     recipient_emails: List[str]
 ) -> bool:
     """
-    Envía un correo electrónico automático a los roles CASS y Administrador
+    Envía un correo electrónico automático a los perfiles CASS, inspector y correos adicionales
     con el resumen de la inspección y el reporte PDF oficial FSSA 106 adjunto.
     """
-    # 1. Obtener credenciales de SMTP desde st.secrets o variables de entorno
-    smtp_server = None
-    smtp_port = 587
-    smtp_user = None
-    smtp_password = None
-    smtp_from = None
+    cfg = get_effective_smtp_config()
+    smtp_server = cfg.get("smtp_server")
+    smtp_port = int(cfg.get("smtp_port", 587))
+    smtp_user = cfg.get("smtp_user")
+    smtp_password = cfg.get("smtp_password")
+    smtp_from = cfg.get("smtp_from") or smtp_user
+    sender_name = cfg.get("sender_name") or "Sullair Flota"
+    use_tls = cfg.get("use_tls", True)
 
-    # Intentar leer desde st.secrets
-    try:
-        if hasattr(st, "secrets") and "email" in st.secrets:
-            sec = st.secrets["email"]
-            smtp_server = sec.get("smtp_server")
-            smtp_port = int(sec.get("smtp_port", 587))
-            smtp_user = sec.get("smtp_user")
-            smtp_password = sec.get("smtp_password")
-            smtp_from = sec.get("smtp_from", smtp_user)
-    except Exception:
-        pass
-
-    # Si no están en secrets, intentar variables de entorno
-    if not smtp_server:
-        smtp_server = os.environ.get("SMTP_SERVER")
-        smtp_port = int(os.environ.get("SMTP_PORT", 587))
-        smtp_user = os.environ.get("SMTP_USER")
-        smtp_password = os.environ.get("SMTP_PASSWORD")
-        smtp_from = os.environ.get("SMTP_FROM", smtp_user)
-
-    # Si no hay servidor SMTP configurado, registrar y retornar False sin interrumpir
     if not smtp_server or not smtp_user or not smtp_password:
-        print("[Notificación por Email] Servidor SMTP no configurado. Para activar el envío automático, complete [email] en .streamlit/secrets.toml.")
+        print("[Notificación por Email] Servidor SMTP no configurado. Configure la casilla en el Panel de Administrador.")
         return False
 
-    if not recipient_emails:
-        print("[Notificación por Email] No se especificaron destinatarios.")
+    clean_recipients = [r.strip().lower() for r in recipient_emails if r and "@" in r]
+    clean_recipients = list(dict.fromkeys(clean_recipients))
+
+    if not clean_recipients:
+        print("[Notificación por Email] No se especificaron destinatarios válidos.")
         return False
 
     try:
         msg = MIMEMultipart()
-        msg["From"] = f"Sullair Flota <{smtp_from}>"
-        msg["To"] = ", ".join(recipient_emails)
+        msg["From"] = f"{sender_name} <{smtp_from}>"
+        msg["To"] = ", ".join(clean_recipients)
         
         nc_count = int(inspection_data.get("nc_count", 0))
         status_tag = f"⚠️ CON {nc_count} NO CONFORMIDADES" if nc_count > 0 else "✅ APROBADO SIN FALLAS"
@@ -130,14 +209,19 @@ def send_inspection_email(
             part["Content-Disposition"] = f'attachment; filename="{pdf_filename}"'
             msg.attach(part)
 
-        # Enviar vía SMTP con TLS
-        server = smtplib.SMTP(smtp_server, smtp_port, timeout=10)
-        server.starttls()
+        # Enviar vía SMTP
+        if smtp_port == 465:
+            server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=12)
+        else:
+            server = smtplib.SMTP(smtp_server, smtp_port, timeout=12)
+            if use_tls:
+                server.starttls()
+
         server.login(smtp_user, smtp_password)
-        server.sendmail(smtp_from, recipient_emails, msg.as_string())
+        server.sendmail(smtp_from, clean_recipients, msg.as_string())
         server.quit()
 
-        print(f"[Notificación por Email] Correo enviado exitosamente a {recipient_emails}")
+        print(f"[Notificación por Email] Correo enviado exitosamente a {clean_recipients}")
         return True
     except Exception as e:
         print(f"[Notificación por Email] Error enviando correo: {e}")

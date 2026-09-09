@@ -83,12 +83,20 @@ CREATE TABLE IF NOT EXISTS sullair_inspection_photos (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 6. TABLA DE CONFIGURACIONES GENERALES Y SMTP
+CREATE TABLE IF NOT EXISTS sullair_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Habilitar Row Level Security (RLS) y Políticas de Acceso para Supabase
 ALTER TABLE sullair_vehicles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sullair_users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sullair_inspections ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sullair_inspection_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sullair_inspection_photos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sullair_settings ENABLE ROW LEVEL SECURITY;
 
 -- Políticas de acceso anónimo / autenticado
 DO $$
@@ -107,6 +115,9 @@ BEGIN
     
     DROP POLICY IF EXISTS "Allow full access sullair_inspection_photos" ON sullair_inspection_photos;
     CREATE POLICY "Allow full access sullair_inspection_photos" ON sullair_inspection_photos FOR ALL USING (true) WITH CHECK (true);
+    
+    DROP POLICY IF EXISTS "Allow full access sullair_settings" ON sullair_settings;
+    CREATE POLICY "Allow full access sullair_settings" ON sullair_settings FOR ALL USING (true) WITH CHECK (true);
 EXCEPTION
     WHEN undefined_object THEN NULL;
 END $$;

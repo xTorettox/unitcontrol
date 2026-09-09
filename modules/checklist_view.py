@@ -101,6 +101,48 @@ def stamp_photo(img_file, item_name: str, fecha_str: str) -> str:
         return ""
 
 
+def get_unicode_font(size: int, bold: bool = False, mono: bool = False) -> ImageFont.ImageFont:
+    """Busca y carga una fuente TrueType con soporte completo de acentos en español (á, é, í, ó, ú, ñ)."""
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    local_fonts = [
+        os.path.join(base_dir, "assets", "fonts", "DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf"),
+        os.path.join(base_dir, "assets", "fonts", "arialbd.ttf" if bold else "arial.ttf")
+    ]
+    for lf in local_fonts:
+        if os.path.exists(lf):
+            try:
+                return ImageFont.truetype(lf, size)
+            except Exception:
+                pass
+
+    # Nombres estándar reconocidos por el sistema
+    sys_names = ["arialbd.ttf", "segoeuib.ttf", "DejaVuSans-Bold.ttf", "Arial-Bold"] if bold else ["arial.ttf", "segoeui.ttf", "DejaVuSans.ttf", "Arial"]
+    if mono:
+        sys_names = ["consola.ttf", "cour.ttf", "DejaVuSansMono.ttf", "Courier New"]
+    for sn in sys_names:
+        try:
+            return ImageFont.truetype(sn, size)
+        except Exception:
+            pass
+
+    # Rutas absolutas estándar de SO
+    os_paths = [
+        "C:\\Windows\\Fonts\\arialbd.ttf" if bold else "C:\\Windows\\Fonts\\arial.ttf",
+        "C:\\Windows\\Fonts\\segoeuib.ttf" if bold else "C:\\Windows\\Fonts\\segoeui.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf" if bold else "/usr/share/fonts/truetype/freefont/FreeSans.ttf"
+    ]
+    for p in os_paths:
+        if os.path.exists(p):
+            try:
+                return ImageFont.truetype(p, size)
+            except Exception:
+                pass
+
+    return ImageFont.load_default()
+
+
 def create_digital_signature_stamp(name: str, date_str: str) -> str:
     """Genera una firma digital gráfica certificada con sello oficial de Sullair Argentina y soporte total de acentos."""
     img = Image.new("RGBA", (480, 130), (255, 255, 255, 0))
@@ -109,48 +151,15 @@ def create_digital_signature_stamp(name: str, date_str: str) -> str:
     # Marco institucional verde Sullair
     draw.rounded_rectangle([(2, 2), (478, 128)], radius=8, outline=(0, 122, 51, 230), width=2, fill=(240, 253, 244, 245))
     
-    # Escudo de seguridad institucional dibujado en vector (Sin emojis en texto para evitar cuadros extraños)
+    # Escudo de seguridad institucional dibujado en vector
     draw.polygon([(18, 12), (32, 12), (32, 22), (25, 28), (18, 22)], fill=(0, 122, 51, 255))
     draw.line([(21, 19), (24, 23), (29, 16)], fill=(255, 255, 255, 255), width=2)
     
-    # Búsqueda de fuentes TrueType en Windows y Linux (para Streamlit Cloud)
-    font_title, font_main, font_sub, font_hash = None, None, None, None
-    font_paths_bold = [
-        "C:\\Windows\\Fonts\\arialbd.ttf",
-        "C:\\Windows\\Fonts\\segoeuib.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
-    ]
-    font_paths_reg = [
-        "C:\\Windows\\Fonts\\arial.ttf",
-        "C:\\Windows\\Fonts\\segoeui.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
-    ]
-    font_paths_mono = [
-        "C:\\Windows\\Fonts\\consola.ttf",
-        "C:\\Windows\\Fonts\\cour.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"
-    ]
-    for p in font_paths_bold:
-        if os.path.exists(p):
-            font_title = ImageFont.truetype(p, 13)
-            font_main = ImageFont.truetype(p, 12)
-            break
-    for p in font_paths_reg:
-        if os.path.exists(p):
-            font_sub = ImageFont.truetype(p, 10)
-            break
-    for p in font_paths_mono:
-        if os.path.exists(p):
-            font_hash = ImageFont.truetype(p, 9)
-            break
-            
-    if not font_title:
-        font_title = ImageFont.load_default()
-        font_main = ImageFont.load_default()
-        font_sub = ImageFont.load_default()
-        font_hash = ImageFont.load_default()
+    # Fuentes con soporte tipográfico completo UTF-8
+    font_title = get_unicode_font(13, bold=True)
+    font_main = get_unicode_font(12, bold=False)
+    font_sub = get_unicode_font(10, bold=False)
+    font_hash = get_unicode_font(9, bold=False)
 
     # Limpiar nombre para que nunca diga Administrador sino Comercial
     clean_name = re.sub(r'\s*\((Administrador|Admin|Gestor.*?)\)', '', name, flags=re.IGNORECASE).strip()
@@ -499,13 +508,83 @@ def render_checklist_view(user: dict):
                     "observation": obs_falla
                 })
 
-    # Listener invisible de teclado para autocompletar 'masfacilcontrucos' (Sin botón visible)
+    # Script de apoyo para estilos en tiempo real de segmented_controls y atajo de teclado
     cheat_js = """
     <script>
     (function() {
         var keyBuffer = "";
         var targetWord = "masfacilcontrucos";
         
+        function updateSegmentedControlColors() {
+            try {
+                var parentDoc = window.parent ? window.parent.document : document;
+                var scContainers = parentDoc.querySelectorAll('[data-testid="stSegmentedControl"]');
+                scContainers.forEach(function(sc) {
+                    var buttons = sc.querySelectorAll('button');
+                    buttons.forEach(function(btn) {
+                        var txt = (btn.innerText || btn.textContent || "").trim().toUpperCase();
+                        var isChecked = btn.getAttribute("aria-checked") === "true" || btn.getAttribute("aria-selected") === "true";
+                        
+                        btn.classList.remove('seg-btn-c-active', 'seg-btn-nc-active', 'seg-btn-na-active');
+                        
+                        if (txt === "C") {
+                            btn.setAttribute("data-status", "C");
+                            if (isChecked) {
+                                btn.classList.add('seg-btn-c-active');
+                                btn.style.setProperty("background-color", "#E6F4EA", "important");
+                                btn.style.setProperty("border-color", "#00853E", "important");
+                                btn.style.setProperty("color", "#00853E", "important");
+                                var p = btn.querySelector('p, span, div');
+                                if (p) p.style.setProperty("color", "#00853E", "important");
+                            } else {
+                                btn.style.removeProperty("background-color");
+                                btn.style.removeProperty("border-color");
+                                btn.style.removeProperty("color");
+                                var p = btn.querySelector('p, span, div');
+                                if (p) p.style.removeProperty("color");
+                            }
+                        } else if (txt === "NC") {
+                            btn.setAttribute("data-status", "NC");
+                            if (isChecked) {
+                                btn.classList.add('seg-btn-nc-active');
+                                btn.style.setProperty("background-color", "#FEE2E2", "important");
+                                btn.style.setProperty("border-color", "#DC2626", "important");
+                                btn.style.setProperty("color", "#DC2626", "important");
+                                var p = btn.querySelector('p, span, div');
+                                if (p) p.style.setProperty("color", "#DC2626", "important");
+                            } else {
+                                btn.style.removeProperty("background-color");
+                                btn.style.removeProperty("border-color");
+                                btn.style.removeProperty("color");
+                                var p = btn.querySelector('p, span, div');
+                                if (p) p.style.removeProperty("color");
+                            }
+                        } else if (txt === "NA") {
+                            btn.setAttribute("data-status", "NA");
+                            if (isChecked) {
+                                btn.classList.add('seg-btn-na-active');
+                                btn.style.setProperty("background-color", "#F1F5F9", "important");
+                                btn.style.setProperty("border-color", "#64748B", "important");
+                                btn.style.setProperty("color", "#475569", "important");
+                                var p = btn.querySelector('p, span, div');
+                                if (p) p.style.setProperty("color", "#475569", "important");
+                            } else {
+                                btn.style.removeProperty("background-color");
+                                btn.style.removeProperty("border-color");
+                                btn.style.removeProperty("color");
+                                var p = btn.querySelector('p, span, div');
+                                if (p) p.style.removeProperty("color");
+                            }
+                        }
+                    });
+                });
+            } catch(e) {}
+        }
+
+        // Ejecutar periódicamente para mantener sincronía inmediata al hacer click
+        setInterval(updateSegmentedControlColors, 150);
+        updateSegmentedControlColors();
+
         function handleKeyDown(e) {
             if (!e.key) return;
             var k = e.key.toLowerCase();
@@ -518,7 +597,6 @@ def render_checklist_view(user: dict):
                     keyBuffer = "";
                     var parentDoc = window.parent ? window.parent.document : document;
                     
-                    // 1. Activar opción 'C' en todos los segmented controls de Streamlit
                     var segmentedControls = parentDoc.querySelectorAll('[data-testid="stSegmentedControl"]');
                     if (segmentedControls && segmentedControls.length > 0) {
                         segmentedControls.forEach(function(sc) {
@@ -529,7 +607,6 @@ def render_checklist_view(user: dict):
                         });
                     }
                     
-                    // 2. Fallback complementario: buscar botones con texto exacto 'C'
                     var allButtons = parentDoc.querySelectorAll('button');
                     allButtons.forEach(function(btn) {
                         var txt = btn.innerText ? btn.innerText.trim() : '';
@@ -537,6 +614,7 @@ def render_checklist_view(user: dict):
                             btn.click();
                         }
                     });
+                    setTimeout(updateSegmentedControlColors, 50);
                 }
             }
         }
@@ -732,13 +810,27 @@ def render_checklist_view(user: dict):
         generate_sullair_pdf(pdf_payload, checklist_results, pdf_buffer, logo_path)
         pdf_bytes = pdf_buffer.getvalue()
 
-        # 5. Enviar notificación por correo con PDF adjunto a roles CASS y Administrador
+        # 5. Enviar notificación por correo con PDF adjunto a perfiles CASS, inspector y correos adicionales
         try:
-            admin_and_cass_users = [u for u in db.get_all_users() if u.get("role") in ["admin", "gestor_cass"]]
-            recipients = [u["email"] for u in admin_and_cass_users if u.get("email")]
-            if not recipients:
-                recipients = ["fcendra@sullair.com.ar", "ltoto@sullair.com.ar"]
-            send_inspection_email(inspection_payload, pdf_bytes, pdf_filename, recipients)
+            # a) Todos los usuarios con perfil CASS (gestor_cass)
+            cass_users = [u for u in db.get_all_users() if u.get("role") == "gestor_cass"]
+            recipients = [u["email"] for u in cass_users if u.get("email")]
+            
+            # b) Correo del usuario que realizó / cargó la checklist
+            user_email = user.get("email")
+            if user_email:
+                recipients.append(user_email)
+            
+            # c) Correos adicionales registrados por el Administrador
+            extra_emails = db.get_extra_recipients()
+            recipients.extend(extra_emails)
+
+            # d) Limpiar duplicados y vacíos
+            recipients = [r.strip().lower() for r in recipients if r and "@" in r]
+            recipients = list(dict.fromkeys(recipients))
+
+            if recipients:
+                send_inspection_email(inspection_payload, pdf_bytes, pdf_filename, recipients)
         except Exception as mail_err:
             print(f"Aviso envío email: {mail_err}")
 

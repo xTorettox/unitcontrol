@@ -108,6 +108,11 @@ class DatabaseManager:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (inspection_id) REFERENCES sullair_inspections(id) ON DELETE CASCADE
             );
+            CREATE TABLE IF NOT EXISTS sullair_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
         """)
         conn.commit()
         conn.close()
@@ -649,6 +654,89 @@ class DatabaseManager:
         conn.commit()
         conn.close()
         return True
+
+    # --- CONFIGURACIONES / SETTINGS & SMTP & DESTINATARIOS ---
+    def get_setting(self, key: str, default: Optional[str] = None) -> Optional[str]:
+        if self.use_supabase and self.supabase_client:
+            try:
+                res = self.supabase_client.table("sullair_settings").select("value").eq("key", key).execute()
+                if res.data and len(res.data) > 0:
+                    return res.data[0]["value"]
+            except Exception:
+                pass
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM sullair_settings WHERE key = ?", (key,))
+        row = cursor.fetchone()
+        conn.close()
+        return row[0] if row else default
+
+    def set_setting(self, key: str, value: str) -> None:
+        if self.use_supabase and self.supabase_client:
+            try:
+                self.supabase_client.table("sullair_settings").upsert({"key": key, "value": value}).execute()
+            except Exception:
+                pass
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("INSERT OR REPLACE INTO sullair_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)", (key, value))
+        conn.commit()
+        conn.close()
+
+    def get_smtp_config(self) -> Dict[str, Any]:
+        val = self.get_setting("smtp_config")
+        if val:
+            try:
+                return json.loads(val)
+            except Exception:
+                pass
+        return {}
+
+    def set_smtp_config(self, config: Dict[str, Any]) -> None:
+        self.set_setting("smtp_config", json.dumps(config))
+
+    def get_extra_recipients(self) -> List[str]:
+        val = self.get_setting("extra_notification_emails")
+        if val:
+            try:
+                emails = json.loads(val)
+                if isinstance(emails, list):
+                    return [e.strip().lower() for e in emails if e and "@" in e]
+            except Exception:
+                pass
+        return []
+
+    def add_extra_recipient(self, email: str) -> bool:
+        clean = email.strip().lower()
+        if not clean or "@" not in clean:
+            return False
+        curr = self.get_extra_recipients()
+        if clean not in curr:
+            curr.append(clean)
+            self.set_setting("extra_notification_emails", json.dumps(curr))
+            return True
+        return False
+
+    def remove_extra_recipient(self, email: str) -> bool:
+        clean = email.strip().lower()
+        curr = self.get_extra_recipients()
+        if clean in curr:
+            curr.remove(clean)
+            self.set_setting("extra_notification_emails", json.dumps(curr))
+            return True
+        return False
+
+    def update_user_password(self, user_id: str, old_password: str, new_password: str) -> tuple[bool, str]:
+        user = self.get_user_by_id(user_id)
+        if not user:
+            return False, "Usuario no encontrado."
+        if not self.verify_password(old_password, user.get("password_hash", "")):
+            return False, "La contraseña actual no es correcta."
+        if not new_password or len(new_password) < 4:
+            return False, "La nueva contraseña debe tener al menos 4 caracteres."
+        
+        self.update_user(user_id, {"password": new_password})
+        return True, "Contraseña actualizada exitosamente."
 
 
 # Instancia singleton

@@ -6,6 +6,7 @@ from datetime import date, datetime
 from database.connection import get_db
 from modules.auth import ROLE_NAMES
 from modules.checklist_view import create_digital_signature_stamp
+from modules.email_notifier import send_test_email
 
 
 def render_profile_view(current_user: dict):
@@ -17,8 +18,8 @@ def render_profile_view(current_user: dict):
     with c_p1:
         st.markdown("### 📋 Datos Personales")
         st.markdown(f"**Nombre:** `{current_user['name']}`")
-        st.markdown(f"**Correo Corporativo:** `{current_user['email']}`")
-        st.markdown(f"**Rol en Sullair:** `{ROLE_NAMES.get(current_user['role'], current_user['role'])}`")
+        st.markdown(f"**Correo:** `{current_user['email']}`")
+        st.markdown(f"**Rol:** `{ROLE_NAMES.get(current_user['role'], current_user['role'])}`")
         if current_user.get("assigned_vehicle_id"):
             v = db.get_vehicle_by_id(current_user["assigned_vehicle_id"])
             if v:
@@ -68,13 +69,45 @@ def render_profile_view(current_user: dict):
             st.success("¡Sello digital certificado guardado en tu perfil!")
             st.rerun()
 
+    # --- CAMBIO DE CONTRASEÑA POR EL USUARIO ---
+    st.markdown("---")
+    st.markdown("### 🔒 Cambiar Mi Contraseña")
+    st.caption("Actualizá tu clave de acceso al sistema cuando lo desees.")
+    with st.form("form_change_password"):
+        col_pwd1, col_pwd2, col_pwd3 = st.columns(3)
+        with col_pwd1:
+            old_pwd = st.text_input("Contraseña Actual *", type="password", placeholder="••••••••")
+        with col_pwd2:
+            new_pwd = st.text_input("Nueva Contraseña *", type="password", placeholder="••••••••")
+        with col_pwd3:
+            confirm_pwd = st.text_input("Confirmar Nueva Contraseña *", type="password", placeholder="••••••••")
+
+        submit_pwd = st.form_submit_button("Actualizar Mi Contraseña", type="primary", use_container_width=True)
+        if submit_pwd:
+            if not old_pwd or not new_pwd or not confirm_pwd:
+                st.error("Por favor complete todos los campos requeridos.")
+            elif new_pwd != confirm_pwd:
+                st.error("La nueva contraseña y su confirmación no coinciden.")
+            elif len(new_pwd) < 4:
+                st.error("La nueva contraseña debe tener al menos 4 caracteres.")
+            else:
+                ok, msg = db.update_user_password(current_user["id"], old_pwd, new_pwd)
+                if ok:
+                    st.success("¡Tu contraseña ha sido actualizada con éxito!")
+                else:
+                    st.error(f"Error: {msg}")
+
 
 def render_admin_view(current_user: dict):
     db = get_db()
     st.markdown("## ⚙️ Panel de Administración")
-    st.caption("Gestión integral de usuarios, roles, asignaciones y flota de vehículos Sullair Argentina.")
+    st.caption("Gestión integral de usuarios, roles, flota de vehículos y configuración de notificaciones Sullair Argentina.")
 
-    tab_users, tab_vehicles = st.tabs(["👥 Gestión de Usuarios", "🚙 Gestión de Flota"])
+    tab_users, tab_vehicles, tab_emails = st.tabs([
+        "👥 Gestión de Usuarios",
+        "🚙 Gestión de Flota",
+        "📧 Configuración de Correos y SMTP"
+    ])
 
     # --- TAB 1: USUARIOS ---
     with tab_users:
@@ -283,3 +316,122 @@ def render_admin_view(current_user: dict):
                         db.delete_vehicle(target_veh["id"])
                         st.warning(f"Vehículo {target_veh['interno']} ({target_veh['patente']}) eliminado de la base de datos.")
                         st.rerun()
+
+    # --- TAB 3: CORREOS Y SERVIDOR SMTP ---
+    with tab_emails:
+        st.markdown("### 📧 Gestión de Notificaciones y Casilla de Envío")
+        st.caption("Configurá los destinatarios de los reportes oficiales y la casilla institucional emisora de correos.")
+
+        # 1. DESTINATARIOS
+        st.markdown("---")
+        st.markdown("#### 📬 1. Destinatarios de las Inspecciones FSSA 106")
+        st.info(
+            "ℹ️ Cada vez que se genera un reporte, se envía automáticamente a:\n"
+            "- Todos los usuarios con rol **CASS** (`gestor_cass`).\n"
+            "- El **usuario/inspector** que realizó y firmó el reporte.\n"
+            "- Todos los **correos adicionales** registrados a continuación."
+        )
+
+        # Mostrar usuarios CASS actuales
+        all_u = db.get_all_users()
+        cass_users = [u for u in all_u if u.get("role") == "gestor_cass"]
+        if cass_users:
+            st.markdown("**Perfiles CASS Activos (Receptores automáticos):**")
+            cass_tags = " ".join([f"`{u['name']} ({u['email']})`" for u in cass_users])
+            st.markdown(cass_tags)
+        else:
+            st.warning("⚠️ No hay usuarios registrados con el rol CASS actualmente. Podés crearlos en la pestaña 'Gestión de Usuarios'.")
+
+        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+        st.markdown("**Correos Adicionales Registrados:**")
+        extra_emails = db.get_extra_recipients()
+        
+        if extra_emails:
+            for em in extra_emails:
+                c_em1, c_em2 = st.columns([4, 1])
+                with c_em1:
+                    st.markdown(f"✉️ `{em}`")
+                with c_em2:
+                    if st.button("🗑️ Eliminar", key=f"del_extra_mail_{em}", use_container_width=True):
+                        db.remove_extra_recipient(em)
+                        st.success(f"Correo {em} eliminado.")
+                        st.rerun()
+        else:
+            st.caption("No hay correos adicionales cargados.")
+
+        # Formulario para agregar correo adicional
+        with st.form("form_add_extra_email"):
+            c_ne1, c_ne2 = st.columns([3, 1])
+            with c_ne1:
+                new_extra_mail = st.text_input("Agregar Nuevo Correo Adicional", placeholder="ejemplo@sullair.com.ar")
+            with c_ne2:
+                st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+                submit_add_mail = st.form_submit_button("➕ Agregar", type="primary", use_container_width=True)
+            
+            if submit_add_mail:
+                if not new_extra_mail or "@" not in new_extra_mail:
+                    st.error("Ingrese una dirección de correo electrónico válida.")
+                else:
+                    if db.add_extra_recipient(new_extra_mail):
+                        st.success(f"¡Correo '{new_extra_mail}' agregado a los destinatarios!")
+                        st.rerun()
+                    else:
+                        st.warning("El correo ya se encuentra en la lista de destinatarios adicionales.")
+
+        # 2. CASILLA DE ENVÍO / SMTP
+        st.markdown("---")
+        st.markdown("#### ⚙️ 2. Casilla de Envío de Mails (Servidor SMTP)")
+        st.caption("Configure los datos de la casilla institucional que despachará los avisos y reportes en PDF adjunto.")
+
+        curr_smtp = db.get_smtp_config()
+
+        with st.form("form_smtp_config"):
+            c_s1, c_s2 = st.columns(2)
+            with c_s1:
+                smtp_serv = st.text_input("Servidor SMTP *", value=curr_smtp.get("smtp_server", ""), placeholder="Ej: smtp.office365.com / smtp.gmail.com")
+                smtp_port = st.number_input("Puerto SMTP *", value=int(curr_smtp.get("smtp_port") or 587), min_value=1, max_value=65535, step=1)
+                smtp_name = st.text_input("Nombre Visible del Remitente", value=curr_smtp.get("sender_name", "Sullair Flota - FSSA 106"))
+            with c_s2:
+                smtp_user = st.text_input("Casilla / Usuario SMTP *", value=curr_smtp.get("smtp_user", ""), placeholder="notificaciones@sullair.com.ar")
+                smtp_pass = st.text_input("Contraseña de Aplicación / SMTP *", value=curr_smtp.get("smtp_password", ""), type="password", placeholder="••••••••••••")
+                smtp_from = st.text_input("Dirección 'From' (Remitente)", value=curr_smtp.get("smtp_from", ""), placeholder="Dejar vacío para usar el mismo usuario")
+
+            smtp_tls = st.checkbox("Habilitar STARTTLS / Seguridad", value=curr_smtp.get("use_tls", True))
+
+            submit_smtp = st.form_submit_button("💾 Guardar Configuración SMTP", type="primary", use_container_width=True)
+            if submit_smtp:
+                if not smtp_serv or not smtp_user or not smtp_pass:
+                    st.error("Por favor complete los campos obligatorios: Servidor SMTP, Usuario y Contraseña.")
+                else:
+                    db.set_smtp_config({
+                        "smtp_server": smtp_serv.strip(),
+                        "smtp_port": int(smtp_port),
+                        "smtp_user": smtp_user.strip(),
+                        "smtp_password": smtp_pass.strip(),
+                        "smtp_from": smtp_from.strip() if smtp_from else smtp_user.strip(),
+                        "sender_name": smtp_name.strip(),
+                        "use_tls": smtp_tls
+                    })
+                    st.success("¡Configuración de casilla SMTP guardada exitosamente en la base de datos!")
+                    st.rerun()
+
+        # Prueba de conexión SMTP
+        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+        with st.expander("🧪 Probar Envío de Correo de Prueba"):
+            c_t1, c_t2 = st.columns([3, 1])
+            with c_t1:
+                test_dest_email = st.text_input("Enviar correo de prueba a:", value=current_user.get("email", ""), key="test_dest_mail")
+            with c_t2:
+                st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+                btn_test_smtp = st.button("🚀 Enviar Prueba", key="btn_run_test_smtp", use_container_width=True)
+
+            if btn_test_smtp:
+                if not test_dest_email or "@" not in test_dest_email:
+                    st.error("Ingrese una dirección de correo válida para la prueba.")
+                else:
+                    with st.spinner("Conectando con el servidor SMTP y enviando correo..."):
+                        ok, msg_res = send_test_email(test_dest_email.strip())
+                        if ok:
+                            st.success(msg_res)
+                        else:
+                            st.error(msg_res)
