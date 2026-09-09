@@ -195,35 +195,47 @@ div[data-testid="stSegmentedControl"] button:hover {
 }
 
 /* =========================================================
-   Colores atados EXCLUSIVAMENTE a las clases de tu script
+   COLORES ATADOS A LOS ATRIBUTOS DE TU JS 
    ========================================================= */
 
-/* CUMPLE (Verde) */
+/* CUMPLE (C) -> VERDE */
+div[data-testid="stSegmentedControl"] button[data-status="C"][aria-checked="true"],
+div[data-testid="stSegmentedControl"] button[data-status="C"][aria-selected="true"],
 div[data-testid="stSegmentedControl"] button.seg-btn-c-active {
     background-color: #E6F4EA !important;
     border: 2px solid #00853E !important;
     color: #00853E !important;
 }
+div[data-testid="stSegmentedControl"] button[data-status="C"][aria-checked="true"] *,
+div[data-testid="stSegmentedControl"] button[data-status="C"][aria-selected="true"] *,
 div[data-testid="stSegmentedControl"] button.seg-btn-c-active * {
     color: #00853E !important;
 }
 
-/* NO CUMPLE (Rojo) */
+/* NO CUMPLE (NC) -> ROJO */
+div[data-testid="stSegmentedControl"] button[data-status="NC"][aria-checked="true"],
+div[data-testid="stSegmentedControl"] button[data-status="NC"][aria-selected="true"],
 div[data-testid="stSegmentedControl"] button.seg-btn-nc-active {
     background-color: #FEE2E2 !important;
     border: 2px solid #DC2626 !important;
     color: #DC2626 !important;
 }
+div[data-testid="stSegmentedControl"] button[data-status="NC"][aria-checked="true"] *,
+div[data-testid="stSegmentedControl"] button[data-status="NC"][aria-selected="true"] *,
 div[data-testid="stSegmentedControl"] button.seg-btn-nc-active * {
     color: #DC2626 !important;
 }
 
-/* NO APLICA (Gris) */
+/* NO APLICA (NA) -> GRIS */
+div[data-testid="stSegmentedControl"] button[data-status="NA"][aria-checked="true"],
+div[data-testid="stSegmentedControl"] button[data-status="NA"][aria-selected="true"],
 div[data-testid="stSegmentedControl"] button.seg-btn-na-active {
     background-color: #F1F5F9 !important;
     border: 2px solid #64748B !important;
     color: #475569 !important;
 }
+div[data-testid="stSegmentedControl"] button[data-status="NA"][aria-checked="true"] *,
+div[data-testid="stSegmentedControl"] button[data-status="NA"][aria-selected="true"] *,
 div[data-testid="stSegmentedControl"] button.seg-btn-na-active * {
     color: #475569 !important;
 }
