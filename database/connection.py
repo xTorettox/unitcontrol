@@ -135,67 +135,15 @@ class DatabaseManager:
             return password == hashed
 
     def _seed_default_data(self):
-        """Crea usuarios y vehículos iniciales asegurando únicamente las cuentas oficiales."""
-        # 1. Asegurar vehículos de flota base
-        vehicles = self.get_vehicles()
-        if not vehicles:
-            self.create_vehicle({
-                "interno": "INT-104",
-                "patente": "AE 452 CD",
-                "marca": "Toyota",
-                "modelo": "Hilux 4x4 D/C",
-                "km_actual": 48250,
-                "vtv_vencimiento": "2026-11-15",
-                "seguro_vencimiento": "2026-10-30",
-                "seguro_poliza": "Allianz - Póliza #994821",
-                "tarjeta_verde": True,
-                "manual": True
-            })
-            self.create_vehicle({
-                "interno": "INT-108",
-                "patente": "AF 892 KL",
-                "marca": "Ford",
-                "modelo": "Ranger XLS 3.2",
-                "km_actual": 62100,
-                "vtv_vencimiento": "2026-09-25",
-                "seguro_vencimiento": "2026-12-01",
-                "seguro_poliza": "La Caja - Póliza #331902",
-                "tarjeta_verde": True,
-                "manual": True
-            })
-            self.create_vehicle({
-                "interno": "INT-112",
-                "patente": "AD 311 ZZ",
-                "marca": "Volkswagen",
-                "modelo": "Amarok 2.0 TDI",
-                "km_actual": 91500,
-                "vtv_vencimiento": "2026-09-18",
-                "seguro_vencimiento": "2026-09-28",
-                "seguro_poliza": "Zurich - Póliza #772819",
-                "tarjeta_verde": True,
-                "manual": True
-            })
-            self.create_vehicle({
-                "interno": "INT-120",
-                "patente": "AF 444 DF",
-                "marca": "Toyota",
-                "modelo": "Yaris XLS 1.5",
-                "km_actual": 700,
-                "vtv_vencimiento": "2027-01-15",
-                "seguro_vencimiento": "2027-01-15",
-                "seguro_poliza": "San Cristóbal - #102938",
-                "tarjeta_verde": True,
-                "manual": True
-            })
-
-        # 2. Limpiar usuarios mock/demo antiguos de SQLite si existieran
+        """Asegura únicamente las cuentas oficiales iniciales requeridas (clean slate)."""
+        # 1. Limpiar usuarios y vehículos mock/demo antiguos de SQLite
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM sullair_users WHERE email IN ('comercial@sullair.com.ar', 'cass@sullair.com.ar', 'flota@sullair.com.ar', 'admin@sullair.com.ar')")
+        cursor.execute("DELETE FROM sullair_users WHERE email IN ('comercial@sullair.com.ar', 'cass@sullair.com.ar', 'flota@sullair.com.ar', 'admin@sullair.com.ar', 'test@sullair.com.ar')")
         conn.commit()
         conn.close()
 
-        # 3. Asegurar las dos cuentas principales requeridas
+        # 2. Asegurar las dos cuentas principales requeridas
         # - fcendra (admin, clave C4n1ch3r1426)
         # - ltoto (Lourdes Toto, gestor_cass, clave esmeralda26)
         user_seeds = [
@@ -208,35 +156,41 @@ class DatabaseManager:
             if not existing:
                 self.create_user(email=email, name=name, role=role, password=pwd, assigned_vehicle_id=veh_id)
             else:
-                # Actualizar nombre y rol si diferían
                 if existing.get("role") != role or existing.get("name") != name:
                     self.update_user(existing["id"], {"name": name, "role": role, "password": pwd})
 
     # --- USUARIOS ---
-    def get_user_by_email(self, identifier: str) -> Optional[Dict[str, Any]]:
-        """Busca un usuario por correo electrónico exacto o por nombre de usuario (ej: 'fcendra')."""
-        if not identifier:
+    def get_user_by_username(self, username: str) -> Optional[Dict[str, Any]]:
+        """Busca un usuario por su nombre de usuario (ej: 'fcendra', 'ltoto') o por correo."""
+        if not username:
             return None
-        clean_id = identifier.strip().lower()
-        search_email = clean_id if "@" in clean_id else f"{clean_id}@sullair.com.ar"
+        clean_user = username.strip().lower()
+        if "@" in clean_user:
+            clean_user = clean_user.split("@")[0]
+        
+        email_pattern = f"{clean_user}@sullair.com.ar"
         
         # 1. Intentar en Supabase
         if self.use_supabase and self.supabase_client:
             try:
-                res = self.supabase_client.table("sullair_users").select("*").or_(f"email.eq.{search_email},email.ilike.{clean_id}@%").execute()
+                res = self.supabase_client.table("sullair_users").select("*").or_(f"email.eq.{email_pattern},email.ilike.{clean_user}@%").execute()
                 if res.data and len(res.data) > 0:
                     return res.data[0]
             except Exception as e:
-                print(f"Supabase get_user_by_email fallback: {e}")
+                print(f"Supabase get_user_by_username fallback: {e}")
 
         # 2. Fallback local SQLite
         conn = sqlite3.connect(DB_FILE)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM sullair_users WHERE LOWER(email) = ? OR LOWER(email) LIKE ?", (search_email, f"{clean_id}@%"))
+        cursor.execute("SELECT * FROM sullair_users WHERE LOWER(email) = ? OR LOWER(email) LIKE ?", (email_pattern, f"{clean_user}@%"))
         row = cursor.fetchone()
         conn.close()
         return dict(row) if row else None
+
+    def get_user_by_email(self, identifier: str) -> Optional[Dict[str, Any]]:
+        """Busca un usuario por correo electrónico exacto o por nombre de usuario."""
+        return self.get_user_by_username(identifier)
 
     def get_user_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
         if self.use_supabase and self.supabase_client:
@@ -463,6 +417,20 @@ class DatabaseManager:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
         cursor.execute(f"UPDATE sullair_vehicles SET {', '.join(fields)} WHERE id = ?", values)
+        conn.commit()
+        conn.close()
+        return True
+
+    def delete_vehicle(self, vehicle_id: str) -> bool:
+        if self.use_supabase and self.supabase_client:
+            try:
+                self.supabase_client.table("sullair_vehicles").delete().eq("id", vehicle_id).execute()
+            except Exception as e:
+                print(f"Supabase delete_vehicle error: {e}")
+
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM sullair_vehicles WHERE id = ?", (vehicle_id,))
         conn.commit()
         conn.close()
         return True

@@ -1,7 +1,7 @@
 import streamlit as st
 import io
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from database.connection import get_db
 from modules.pdf_generator import generate_sullair_pdf
@@ -15,16 +15,13 @@ def render_history_view(user: dict):
 
     is_admin_or_gestor = user.get("role") in ["admin", "gestor_cass", "responsable_flota"]
 
+    today_now = datetime.now()
+    dynamic_months = [(today_now.replace(day=1) - timedelta(days=30*i)).strftime("%Y-%m") for i in range(6)]
     c_h1, c_h2 = st.columns([1, 2])
     with c_h1:
         mes_filtro = st.selectbox(
             "Filtrar por Mes",
-            options=["Todos"] + [
-                datetime.now().strftime("%Y-%m"),
-                "2026-08",
-                "2026-07",
-                "2026-06"
-            ],
+            options=["Todos"] + dynamic_months,
             key="hist_mes"
         )
     with c_h2:

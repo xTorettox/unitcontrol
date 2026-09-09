@@ -14,9 +14,9 @@ def init_auth_state():
     if "authenticated" not in st.session_state:
         st.session_state["authenticated"] = False
 
-def login_user(email: str, password: str) -> bool:
+def login_user(username: str, password: str) -> bool:
     db = get_db()
-    user = db.get_user_by_email(email)
+    user = db.get_user_by_username(username)
     if user and db.verify_password(password, user["password_hash"]):
         st.session_state["user"] = user
         st.session_state["authenticated"] = True

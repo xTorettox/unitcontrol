@@ -242,3 +242,44 @@ def render_admin_view(current_user: dict):
                         st.rerun()
                     except Exception as e:
                         st.error(f"Error registrando vehículo: {e}")
+
+        # Modificar o Eliminar Vehículo existente
+        if vehicles:
+            st.markdown("---")
+            st.markdown("### ✏️ Modificar o Eliminar Unidad de Flota")
+            veh_manage_opts = [f"{v['interno']} - {v['patente']} ({v['marca']} {v.get('modelo', '')})" for v in vehicles]
+            sel_vm_label = st.selectbox("Seleccionar Vehículo a Administrar", options=veh_manage_opts, key="admin_sel_veh")
+            sel_vm_pat = sel_vm_label.split("-")[1].split("(")[0].strip()
+            target_veh = next((v for v in vehicles if v["patente"] == sel_vm_pat), None)
+
+            if target_veh:
+                c_ev1, c_ev2, c_ev3 = st.columns(3)
+                with c_ev1:
+                    ev_interno = st.text_input("N° Interno", value=target_veh["interno"], key="ev_int")
+                    ev_marca = st.text_input("Marca", value=target_veh["marca"], key="ev_mar")
+                with c_ev2:
+                    ev_patente = st.text_input("Patente", value=target_veh["patente"], key="ev_pat")
+                    ev_modelo = st.text_input("Modelo", value=target_veh.get("modelo", ""), key="ev_mod")
+                with c_ev3:
+                    ev_km = st.number_input("Km Actual", value=int(target_veh.get("km_actual") or 0), step=100, key="ev_km")
+                    ev_poliza = st.text_input("Póliza Seguro", value=target_veh.get("seguro_poliza", ""), key="ev_pol")
+
+                col_vbtn1, col_vbtn2 = st.columns([1, 1])
+                with col_vbtn1:
+                    if st.button("💾 Guardar Cambios de Unidad", key="btn_save_veh_edit", type="primary", use_container_width=True):
+                        db.update_vehicle(target_veh["id"], {
+                            "interno": ev_interno.strip(),
+                            "patente": ev_patente.strip().upper(),
+                            "marca": ev_marca.strip(),
+                            "modelo": ev_modelo.strip(),
+                            "km_actual": int(ev_km),
+                            "seguro_poliza": ev_poliza.strip()
+                        })
+                        st.success(f"¡Vehículo {ev_interno} actualizado correctamente!")
+                        st.rerun()
+
+                with col_vbtn2:
+                    if st.button("🗑️ Eliminar Unidad de Flota", key="btn_del_veh", type="secondary", use_container_width=True):
+                        db.delete_vehicle(target_veh["id"])
+                        st.warning(f"Vehículo {target_veh['interno']} ({target_veh['patente']}) eliminado de la base de datos.")
+                        st.rerun()

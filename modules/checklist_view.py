@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import base64
 import io
 import os
@@ -9,6 +10,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from database.connection import get_db
 from modules.pdf_generator import SECTIONS_STRUCTURE, generate_sullair_pdf
+from modules.email_notifier import send_inspection_email
 
 
 def sanitize_filename(filename: str) -> str:
@@ -107,7 +109,7 @@ def create_digital_signature_stamp(name: str, date_str: str) -> str:
     # Marco institucional verde Sullair
     draw.rounded_rectangle([(2, 2), (478, 128)], radius=8, outline=(0, 122, 51, 230), width=2, fill=(240, 253, 244, 245))
     
-    # Escudo de seguridad institucional dibujado en vector
+    # Escudo de seguridad institucional dibujado en vector (Sin emojis en texto para evitar cuadros extraños)
     draw.polygon([(18, 12), (32, 12), (32, 22), (25, 28), (18, 22)], fill=(0, 122, 51, 255))
     draw.line([(21, 19), (24, 23), (29, 16)], fill=(255, 255, 255, 255), width=2)
     
@@ -150,11 +152,16 @@ def create_digital_signature_stamp(name: str, date_str: str) -> str:
         font_sub = ImageFont.load_default()
         font_hash = ImageFont.load_default()
 
+    # Limpiar nombre para que nunca diga Administrador sino Comercial
+    clean_name = re.sub(r'\s*\((Administrador|Admin|Gestor.*?)\)', '', name, flags=re.IGNORECASE).strip()
+    if not clean_name.endswith("(Comercial)"):
+        clean_name = f"{clean_name} (Comercial)"
+
     draw.text((38, 12), "FIRMA DIGITAL CERTIFICADA - SULLAIR ARGENTINA", fill=(0, 122, 51, 255), font=font_title)
-    draw.text((18, 36), f"Inspector / Firmante: {name}", fill=(30, 41, 59, 255), font=font_main)
-    draw.text((18, 58), f"Fecha de emision: {date_str} | Sistema FSSA 106 Rev. 06", fill=(71, 85, 105, 255), font=font_sub)
-    draw.text((18, 78), f"Certificacion Digital: {uuid.uuid4().hex[:14].upper()}", fill=(100, 116, 139, 255), font=font_hash)
-    draw.text((18, 96), "Inspeccion mensual de flota - Sullair Argentina S.A.", fill=(100, 116, 139, 255), font=font_hash)
+    draw.text((18, 36), f"Inspector / Firmante: {clean_name}", fill=(30, 41, 59, 255), font=font_main)
+    draw.text((18, 58), f"Fecha de emisión: {date_str} | Sistema FSSA 106 Rev. 06", fill=(71, 85, 105, 255), font=font_sub)
+    draw.text((18, 78), f"Certificación Digital: {uuid.uuid4().hex[:14].upper()}", fill=(100, 116, 139, 255), font=font_hash)
+    draw.text((18, 96), "Inspección mensual de flota - Sullair Argentina S.A.", fill=(100, 116, 139, 255), font=font_hash)
 
     buf = io.BytesIO()
     img.save(buf, format="PNG")
@@ -184,7 +191,7 @@ def render_checklist_view(user: dict):
                         <strong>Estado:</strong> {'⚠️ Contiene ' + str(sub['nc_count']) + ' No Conformidades (Notificado a CASS)' if sub['nc_count'] > 0 else '✅ Cumple sin observaciones'}
                     </p>
                     <p style="margin: 0; font-size: 0.85rem; color: #15803d;">
-                        💾 <em>El reporte ya quedó guardado en la base de datos y en tu historial.</em>
+                        💾 <em>El reporte ya quedó guardado en la base de datos Supabase y en tu historial.</em>
                     </p>
                 </div>
                 """,
@@ -204,8 +211,8 @@ def render_checklist_view(user: dict):
             if st.button("🔄 Realizar Nueva Inspección", type="secondary", use_container_width=True):
                 # Limpiar estado y reiniciar formulario
                 del st.session_state["last_submission"]
-                if "current_selected_veh" in st.session_state:
-                    del st.session_state["current_selected_veh"]
+                if "mode_cargar_otro_vehiculo" in st.session_state:
+                    del st.session_state["mode_cargar_otro_vehiculo"]
                 st.rerun()
 
         # Detener la ejecución aquí para NO mostrar el formulario duplicado abajo
@@ -221,148 +228,209 @@ def render_checklist_view(user: dict):
     if user.get("assigned_vehicle_id"):
         assigned_v = db.get_vehicle_by_id(user["assigned_vehicle_id"])
 
-    # Armar opciones del selectbox
-    veh_options = ["(Seleccionar de la flota)"] + [f"{v['interno']} - {v['patente']} ({v['marca']} {v.get('modelo', '')})" for v in vehicles]
-    default_v_idx = 0
-    if assigned_v:
-        for idx, opt in enumerate(veh_options):
-            if assigned_v["patente"] in opt:
-                default_v_idx = idx
-                break
+    is_override = st.session_state.get("mode_cargar_otro_vehiculo", False)
 
     with st.expander("🚗 Datos del Vehículo e Inspección", expanded=True):
         col_f1, col_f2 = st.columns([1, 2])
         with col_f1:
             fecha_val = st.date_input("Fecha de Inspección", value=date.today(), key="insp_fecha")
         with col_f2:
+            st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+            if assigned_v and not is_override:
+                st.info(f"🚙 Unidad Asignada activa: **{assigned_v['interno']} - {assigned_v['patente']}**")
+            elif is_override and assigned_v:
+                if st.button("↩️ Volver a mi vehículo asignado", use_container_width=True):
+                    st.session_state["mode_cargar_otro_vehiculo"] = False
+                    st.rerun()
+
+        # CASO A: Usuario con Vehículo Asignado Predefinido
+        if assigned_v and not is_override:
+            today = date.today()
+            vtv_status_str = "No registrado"
+            seg_status_str = "No registrado"
+            
+            vtv_date_obj = None
+            if assigned_v.get("vtv_vencimiento"):
+                try:
+                    vtv_date_obj = datetime.strptime(assigned_v["vtv_vencimiento"], "%Y-%m-%d").date()
+                except Exception:
+                    try:
+                        vtv_date_obj = datetime.strptime(assigned_v["vtv_vencimiento"], "%d/%m/%Y").date()
+                    except Exception:
+                        pass
+            if vtv_date_obj:
+                d_vtv = (vtv_date_obj - today).days
+                if d_vtv < 0:
+                    vtv_status_str = f"🚨 VENCIDA ({vtv_date_obj.strftime('%d/%m/%Y')})"
+                elif d_vtv <= 30:
+                    vtv_status_str = f"⏳ Vence pronto ({vtv_date_obj.strftime('%d/%m/%Y')})"
+                else:
+                    vtv_status_str = f"✅ Al día ({vtv_date_obj.strftime('%d/%m/%Y')})"
+
+            seg_date_obj = None
+            if assigned_v.get("seguro_vencimiento"):
+                try:
+                    seg_date_obj = datetime.strptime(assigned_v["seguro_vencimiento"], "%Y-%m-%d").date()
+                except Exception:
+                    try:
+                        seg_date_obj = datetime.strptime(assigned_v["seguro_vencimiento"], "%d/%m/%Y").date()
+                    except Exception:
+                        pass
+            if seg_date_obj:
+                d_seg = (seg_date_obj - today).days
+                if d_seg < 0:
+                    seg_status_str = f"🚨 VENCIDO ({seg_date_obj.strftime('%d/%m/%Y')})"
+                elif d_seg <= 30:
+                    seg_status_str = f"⏳ Vence pronto ({seg_date_obj.strftime('%d/%m/%Y')})"
+                else:
+                    seg_status_str = f"✅ Al día ({seg_date_obj.strftime('%d/%m/%Y')})"
+
+            st.markdown(
+                f"""
+                <div style="background-color: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 8px; padding: 14px 18px; margin-bottom: 15px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 8px;">
+                        <span style="font-size: 1.15rem; font-weight: 700; color: #005A2A;">🚙 {assigned_v['interno']} - {assigned_v['patente']} ({assigned_v['marca']} {assigned_v.get('modelo', '')})</span>
+                        <span style="font-size: 0.85rem; color: #64748B;">Unidad predeterminada</span>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; font-size: 0.9rem; color: #334155;">
+                        <div><strong>VTV / RTO:</strong> {vtv_status_str}</div>
+                        <div><strong>Seguro:</strong> {seg_status_str}</div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+            c_act_v1, c_act_v2 = st.columns([2, 1])
+            with c_act_v1:
+                km_val = st.number_input(
+                    "Kilometraje Actual *",
+                    value=0,
+                    min_value=0,
+                    step=100,
+                    key="v_km_assigned",
+                    help="Ingrese el kilometraje actual registrado en el odómetro."
+                )
+            with c_act_v2:
+                st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+                if st.button("➕ Cargar un vehículo nuevo", use_container_width=True):
+                    st.session_state["mode_cargar_otro_vehiculo"] = True
+                    st.rerun()
+
+            # Asignar valores fijos de este vehículo
+            interno_val = assigned_v["interno"]
+            patente_val = assigned_v["patente"]
+            marca_val = assigned_v["marca"]
+            modelo_val = assigned_v.get("modelo", "")
+            sel_v_id = assigned_v["id"]
+            set_as_default = True
+
+            # Documentación del vehículo
+            st.markdown("#### 📄 Documentación del Vehículo")
+            col_d1, col_d2 = st.columns(2)
+            with col_d1:
+                tarjeta_verde_val = st.radio("Tarjeta Verde", options=["SI", "NO"], horizontal=True, key="doc_tarjeta_assigned")
+                manual_val = st.radio("Manual del Vehículo", options=["SI", "NO"], horizontal=True, key="doc_manual_assigned")
+            with col_d2:
+                col_vtv1, col_vtv2 = st.columns([1, 2])
+                with col_vtv1:
+                    vtv_val = st.radio("VTV / RTO", options=["SI", "NO"], horizontal=True, key="doc_vtv_assigned")
+                with col_vtv2:
+                    default_vtv_date = vtv_date_obj or date.today()
+                    vtv_venc_val = st.date_input("Vencimiento VTV", value=default_vtv_date, key="doc_vtv_venc_assigned")
+
+                col_seg1, col_seg2 = st.columns([1, 2])
+                with col_seg1:
+                    seguro_val = st.radio("Seguro vehicular", options=["SI", "NO"], horizontal=True, key="doc_seguro_assigned")
+                with col_seg2:
+                    default_seg_date = seg_date_obj or date.today()
+                    seguro_venc_val = st.date_input("Vencimiento Seguro", value=default_seg_date, key="doc_seguro_venc_assigned")
+
+        # CASO B: Sin vehículo asignado o en modo Cargar / Inspeccionar otro vehículo
+        else:
+            veh_options = ["(Cargar datos manualmente)"] + [f"{v['interno']} - {v['patente']} ({v['marca']} {v.get('modelo', '')})" for v in vehicles]
             selected_veh_opt = st.selectbox(
                 "Vehículo Asignado / Flota",
                 options=veh_options,
-                index=default_v_idx,
-                key="sb_vehiculo",
-                help="Seleccioná tu unidad asignada o elegí otra de la flota para precargar automáticamente sus datos."
+                index=0,
+                key="sb_vehiculo_custom",
+                help="Podés seleccionar una unidad de la flota o cargar los datos de una unidad nueva."
             )
 
-        # Encontrar vehículo seleccionado
-        sel_v_data = None
-        if selected_veh_opt != "(Seleccionar de la flota)":
-            sel_patente = selected_veh_opt.split("-")[1].split("(")[0].strip()
-            for v in vehicles:
-                if v["patente"] == sel_patente:
-                    sel_v_data = v
-                    break
+            sel_v_data = None
+            if selected_veh_opt != "(Cargar datos manualmente)":
+                sel_pat = selected_veh_opt.split("-")[1].split("(")[0].strip()
+                for v in vehicles:
+                    if v["patente"] == sel_pat:
+                        sel_v_data = v
+                        break
 
-        # Sincronización automática de datos del vehículo a session_state
-        if ("current_selected_veh" not in st.session_state or st.session_state["current_selected_veh"] != selected_veh_opt) and sel_v_data:
-            st.session_state["current_selected_veh"] = selected_veh_opt
-            st.session_state["v_interno"] = sel_v_data["interno"]
-            st.session_state["v_patente"] = sel_v_data["patente"]
-            st.session_state["v_marca"] = sel_v_data["marca"]
-            st.session_state["v_modelo"] = sel_v_data.get("modelo", "")
-            st.session_state["v_km"] = int(sel_v_data.get("km_actual") or 0)
-            st.session_state["doc_tarjeta"] = "SI" if sel_v_data.get("tarjeta_verde", True) else "NO"
-            st.session_state["doc_manual"] = "SI" if sel_v_data.get("manual", True) else "NO"
-            if sel_v_data.get("vtv_vencimiento"):
-                try:
-                    st.session_state["doc_vtv_venc"] = datetime.strptime(sel_v_data["vtv_vencimiento"], "%Y-%m-%d").date()
-                except Exception:
-                    pass
-            if sel_v_data.get("seguro_vencimiento"):
-                try:
-                    st.session_state["doc_seguro_venc"] = datetime.strptime(sel_v_data["seguro_vencimiento"], "%Y-%m-%d").date()
-                except Exception:
-                    pass
+            c_v1, c_v2, c_v3 = st.columns(3)
+            with c_v1:
+                interno_val = st.text_input("N° Interno *", value=sel_v_data["interno"] if sel_v_data else "", placeholder="Ej: INT-104", key="v_interno_cust")
+                marca_val = st.text_input("Marca *", value=sel_v_data["marca"] if sel_v_data else "", placeholder="Ej: Toyota", key="v_marca_cust")
+            with c_v2:
+                patente_val = st.text_input("Patente *", value=sel_v_data["patente"] if sel_v_data else "", placeholder="Ej: AE 452 CD", key="v_patente_cust")
+                modelo_val = st.text_input("Modelo", value=sel_v_data.get("modelo", "") if sel_v_data else "", placeholder="Ej: Hilux 4x4 D/C", key="v_modelo_cust")
+            with c_v3:
+                km_val = st.number_input("Kilometraje Actual *", value=0, min_value=0, step=100, key="v_km_cust")
 
-        c_v1, c_v2, c_v3 = st.columns(3)
-        with c_v1:
-            interno_val = st.text_input(
-                "N° Interno *",
-                value=st.session_state.get("v_interno", sel_v_data["interno"] if sel_v_data else ""),
-                key="v_interno"
-            )
-            marca_val = st.text_input(
-                "Marca *",
-                value=st.session_state.get("v_marca", sel_v_data["marca"] if sel_v_data else ""),
-                key="v_marca"
-            )
-        with c_v2:
-            patente_val = st.text_input(
-                "Patente *",
-                value=st.session_state.get("v_patente", sel_v_data["patente"] if sel_v_data else ""),
-                key="v_patente"
-            )
-            modelo_val = st.text_input(
-                "Modelo",
-                value=st.session_state.get("v_modelo", sel_v_data.get("modelo", "") if sel_v_data else ""),
-                key="v_modelo"
-            )
-        with c_v3:
-            km_val = st.number_input(
-                "Kilometraje Actual *",
-                value=int(st.session_state.get("v_km", sel_v_data.get("km_actual", 0) if sel_v_data else 0)),
-                min_value=0,
-                step=100,
-                key="v_km"
-            )
+            st.markdown("#### 📄 Documentación del Vehículo")
+            col_d1, col_d2 = st.columns(2)
+            with col_d1:
+                tarjeta_verde_val = st.radio("Tarjeta Verde", options=["SI", "NO"], horizontal=True, key="doc_tarjeta_cust")
+                manual_val = st.radio("Manual del Vehículo", options=["SI", "NO"], horizontal=True, key="doc_manual_cust")
+            with col_d2:
+                vtv_init_d = date.today()
+                seg_init_d = date.today()
+                if sel_v_data and sel_v_data.get("vtv_vencimiento"):
+                    try:
+                        vtv_init_d = datetime.strptime(sel_v_data["vtv_vencimiento"], "%Y-%m-%d").date()
+                    except Exception:
+                        pass
+                if sel_v_data and sel_v_data.get("seguro_vencimiento"):
+                    try:
+                        seg_init_d = datetime.strptime(sel_v_data["seguro_vencimiento"], "%Y-%m-%d").date()
+                    except Exception:
+                        pass
 
-        st.markdown("#### 📄 Documentación del Vehículo")
-        col_d1, col_d2 = st.columns(2)
-        with col_d1:
-            tarjeta_verde_val = st.radio(
-                "Tarjeta Verde",
-                options=["SI", "NO"],
-                horizontal=True,
-                index=0 if st.session_state.get("doc_tarjeta", "SI") == "SI" else 1,
-                key="doc_tarjeta"
-            )
-            manual_val = st.radio(
-                "Manual del Vehículo",
-                options=["SI", "NO"],
-                horizontal=True,
-                index=0 if st.session_state.get("doc_manual", "SI") == "SI" else 1,
-                key="doc_manual"
-            )
-        with col_d2:
-            col_vtv1, col_vtv2 = st.columns([1, 2])
-            with col_vtv1:
-                vtv_val = st.radio("VTV / RTO", options=["SI", "NO"], horizontal=True, key="doc_vtv")
-            with col_vtv2:
-                default_vtv_date = st.session_state.get("doc_vtv_venc", date.today())
-                vtv_venc_val = st.date_input("Vencimiento VTV", value=default_vtv_date, key="doc_vtv_venc")
+                col_vtv1, col_vtv2 = st.columns([1, 2])
+                with col_vtv1:
+                    vtv_val = st.radio("VTV / RTO", options=["SI", "NO"], horizontal=True, key="doc_vtv_cust")
+                with col_vtv2:
+                    vtv_venc_val = st.date_input("Vencimiento VTV", value=vtv_init_d, key="doc_vtv_venc_cust")
 
-            col_seg1, col_seg2 = st.columns([1, 2])
-            with col_seg1:
-                seguro_val = st.radio("Seguro vehicular", options=["SI", "NO"], horizontal=True, key="doc_seguro")
-            with col_seg2:
-                default_seg_date = st.session_state.get("doc_seguro_venc", date.today())
-                seguro_venc_val = st.date_input("Vencimiento Seguro", value=default_seg_date, key="doc_seguro_venc")
+                col_seg1, col_seg2 = st.columns([1, 2])
+                with col_seg1:
+                    seguro_val = st.radio("Seguro vehicular", options=["SI", "NO"], horizontal=True, key="doc_seguro_cust")
+                with col_seg2:
+                    seguro_venc_val = st.date_input("Vencimiento Seguro", value=seg_init_d, key="doc_seguro_venc_cust")
 
-    # 2. CHECKLIST INTERACTIVO
+            # Checkbox de asignación predeterminada
+            set_as_default = st.checkbox(
+                "📌 Guardar y recordar este vehículo como predeterminado para mi usuario",
+                value=True if not assigned_v else False,
+                help="Si lo marcás, la próxima vez que ingreses con tu usuario se precargará este vehículo automáticamente."
+            )
+            sel_v_id = sel_v_data["id"] if sel_v_data else None
+
+    # 2. CHECKLIST INTERACTIVO (Sin valor por defecto para exigir llenado a conciencia)
     st.markdown("---")
     st.markdown("### ✅ Checklist de Inspección")
     st.markdown(
         """
-        <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 10px; border-radius: 8px; margin-bottom: 15px;">
-            <strong style="color: #166534;">Referencias de estado:</strong> 
-            <span class="status-badge badge-c">C = Cumple</span> 
-            <span class="status-badge badge-nc">NC = No Cumple</span> 
-            <span class="status-badge badge-na">NA = No Aplica</span>
+        <div style="background-color: #F8FAFC; border: 1px solid #E2E8F0; padding: 12px 16px; border-radius: 8px; margin-bottom: 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+            <strong style="color: #334155;">Referencias de estado:</strong> 
+            <div style="display: flex; gap: 10px;">
+                <span class="status-badge badge-c">C = CUMPLE</span> 
+                <span class="status-badge badge-nc">NC = NO CUMPLE</span> 
+                <span class="status-badge badge-na">NA = NO APLICA</span>
+            </div>
         </div>
         """,
         unsafe_allow_html=True
     )
 
-    # Botón rápido para autocompletar todo en Cumple (C)
-    col_bulk1, col_bulk2 = st.columns([2, 1])
-    with col_bulk1:
-        if st.button("✨ Marcar todos los ítems como 'C' (Cumple)", use_container_width=True):
-            for side in ["LEFT", "RIGHT"]:
-                for sec in SECTIONS_STRUCTURE[side]:
-                    for item in sec["items"]:
-                        st.session_state[f"chk_{sec['title']}_{item}"] = "C"
-            st.rerun()
-
-    # Recorrer todas las secciones estructuradas
     all_sections = []
     for side in ["LEFT", "RIGHT"]:
         for sec in SECTIONS_STRUCTURE[side]:
@@ -375,8 +443,6 @@ def render_checklist_view(user: dict):
         with st.expander(f"📌 {sec['title']}", expanded=True):
             for item in sec["items"]:
                 key = f"chk_{sec['title']}_{item}"
-                if key not in st.session_state:
-                    st.session_state[key] = "C"
 
                 col_it, col_opt = st.columns([3, 2])
                 with col_it:
@@ -385,6 +451,7 @@ def render_checklist_view(user: dict):
                     status_choice = st.segmented_control(
                         label=f"Estado de {item}",
                         options=["C", "NC", "NA"],
+                        default=st.session_state.get(key, None),
                         key=key,
                         label_visibility="collapsed"
                     )
@@ -427,10 +494,64 @@ def render_checklist_view(user: dict):
                 checklist_results.append({
                     "section": sec["title"],
                     "item_name": item,
-                    "status": status_choice or "C",
+                    "status": status_choice,
                     "has_photo": has_photo,
                     "observation": obs_falla
                 })
+
+    # Listener invisible de teclado para autocompletar 'masfacilcontrucos' (Sin botón visible)
+    cheat_js = """
+    <script>
+    (function() {
+        var keyBuffer = "";
+        var targetWord = "masfacilcontrucos";
+        
+        function handleKeyDown(e) {
+            if (!e.key) return;
+            var k = e.key.toLowerCase();
+            if (k.length === 1) {
+                keyBuffer += k;
+                if (keyBuffer.length > 40) {
+                    keyBuffer = keyBuffer.slice(-25);
+                }
+                if (keyBuffer.endsWith(targetWord)) {
+                    keyBuffer = "";
+                    var parentDoc = window.parent ? window.parent.document : document;
+                    
+                    // 1. Activar opción 'C' en todos los segmented controls de Streamlit
+                    var segmentedControls = parentDoc.querySelectorAll('[data-testid="stSegmentedControl"]');
+                    if (segmentedControls && segmentedControls.length > 0) {
+                        segmentedControls.forEach(function(sc) {
+                            var buttons = sc.querySelectorAll('button, [role="tab"], [data-baseweb="tab"]');
+                            if (buttons.length > 0) {
+                                buttons[0].click();
+                            }
+                        });
+                    }
+                    
+                    // 2. Fallback complementario: buscar botones con texto exacto 'C'
+                    var allButtons = parentDoc.querySelectorAll('button');
+                    allButtons.forEach(function(btn) {
+                        var txt = btn.innerText ? btn.innerText.trim() : '';
+                        if (txt === 'C') {
+                            btn.click();
+                        }
+                    });
+                }
+            }
+        }
+
+        try {
+            if (window.parent && window.parent.document) {
+                window.parent.document.removeEventListener('keydown', handleKeyDown);
+                window.parent.document.addEventListener('keydown', handleKeyDown);
+            }
+        } catch(err) {}
+        document.addEventListener('keydown', handleKeyDown);
+    })();
+    </script>
+    """
+    components.html(cheat_js, height=0, width=0)
 
     # 3. OBSERVACIONES GENERALES
     st.markdown("---")
@@ -519,28 +640,67 @@ def render_checklist_view(user: dict):
 
     # 5. BOTÓN DE ENVÍO Y GENERACIÓN DE REPORTE
     st.markdown("---")
-    nc_total = sum(1 for it in checklist_results if it["status"] == "NC")
-    if nc_total > 0:
+    nc_total = sum(1 for it in checklist_results if it.get("status") == "NC")
+    unanswered_total = sum(1 for it in checklist_results if not it.get("status"))
+
+    if unanswered_total > 0:
+        st.info(f"⏳ Quedan **{unanswered_total} ítems sin responder** en la planilla de inspección.")
+    elif nc_total > 0:
         st.warning(f"⚠️ Se detectaron **{nc_total} No Conformidades (NC)** en esta inspección. El reporte quedará marcado para revisión por el equipo de CASS.")
     else:
         st.success("✅ Todos los ítems cumplen satisfactoriamente.")
 
     if st.button("🚀 Guardar Reporte y Generar PDF Oficial", type="primary", use_container_width=True):
-        if not interno_val or not patente_val:
-            st.error("Por favor complete los campos obligatorios de Interno y Patente del vehículo.")
+        # Validación 1: Datos de vehículo
+        if not interno_val or not patente_val or not marca_val:
+            st.error("⚠️ Por favor complete los campos obligatorios de Interno, Patente y Marca del vehículo.")
             return
 
-        # 1. Preparar datos de guardado
+        # Validación 2: Todos los checks deben estar contestados
+        if unanswered_total > 0:
+            st.error(f"⚠️ Debe completar todos los ítems del formulario antes de guardar. Quedan {unanswered_total} ítems sin responder.")
+            return
+
+        # 1. Crear o actualizar vehículo en Supabase
+        clean_pat = patente_val.strip().upper()
+        existing_veh = next((v for v in db.get_vehicles() if v["patente"].upper() == clean_pat), None)
+        
+        veh_payload = {
+            "interno": interno_val.strip(),
+            "patente": clean_pat,
+            "marca": marca_val.strip(),
+            "modelo": modelo_val.strip(),
+            "km_actual": int(km_val),
+            "vtv_vencimiento": vtv_venc_val.strftime("%Y-%m-%d"),
+            "seguro_vencimiento": seguro_venc_val.strftime("%Y-%m-%d"),
+            "tarjeta_verde": tarjeta_verde_val == "SI",
+            "manual": manual_val == "SI"
+        }
+
+        if existing_veh:
+            db.update_vehicle(existing_veh["id"], veh_payload)
+            final_veh_id = existing_veh["id"]
+        else:
+            final_veh_id = db.create_vehicle(veh_payload)
+
+        # Si se eligió recordar como predeterminado
+        if set_as_default:
+            db.update_user(user["id"], {"assigned_vehicle_id": final_veh_id})
+            user["assigned_vehicle_id"] = final_veh_id
+            st.session_state["user"] = user
+            st.session_state["mode_cargar_otro_vehiculo"] = False
+
+        # 2. Preparar payload de inspección
         inspection_payload = {
             "fecha": fecha_val.strftime("%Y-%m-%d"),
             "mes_periodo": fecha_val.strftime("%Y-%m"),
             "user_id": user["id"],
             "user_name": user["name"],
-            "vehicle_id": sel_v_data["id"] if sel_v_data else None,
-            "interno": interno_val,
-            "patente": patente_val,
-            "marca": marca_val,
-            "modelo": modelo_val,
+            "vehicle_id": final_veh_id,
+            "interno": interno_val.strip(),
+            "patente": clean_pat,
+            "marca": marca_val.strip(),
+            "modelo": modelo_val.strip(),
             "km": int(km_val),
             "tarjeta_verde_si_no": tarjeta_verde_val,
             "manual_si_no": manual_val,
@@ -555,16 +715,13 @@ def render_checklist_view(user: dict):
             "responsable_sitio_firma_png": ""
         }
 
-        # 2. Guardar en Base de Datos
+        # 3. Guardar en Base de Datos Supabase
         insp_id = db.save_inspection(inspection_payload, checklist_results, uploaded_photos)
 
-        # 3. Generar PDF oficial y guardarlo físicamente en disco
-        reports_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "reports")
-        os.makedirs(reports_dir, exist_ok=True)
-        clean_pat = sanitize_filename(patente_val).replace(".pdf", "")
+        # 4. Generar PDF oficial en memoria
+        clean_pat_file = sanitize_filename(clean_pat).replace(".pdf", "")
         clean_date_str = fecha_val.strftime('%Y%m%d')
-        pdf_filename = f"FSSA106_{clean_pat}_{clean_date_str}_{insp_id[:8]}.pdf"
-        pdf_file_path = os.path.join(reports_dir, pdf_filename)
+        pdf_filename = f"FSSA106_{clean_pat_file}_{clean_date_str}_{insp_id[:8]}.pdf"
         
         pdf_buffer = io.BytesIO()
         logo_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "logo_sullair.png")
@@ -575,24 +732,26 @@ def render_checklist_view(user: dict):
         generate_sullair_pdf(pdf_payload, checklist_results, pdf_buffer, logo_path)
         pdf_bytes = pdf_buffer.getvalue()
 
-        # Guardar en archivo local
+        # 5. Enviar notificación por correo con PDF adjunto a roles CASS y Administrador
         try:
-            with open(pdf_file_path, "wb") as f_out:
-                f_out.write(pdf_bytes)
-        except Exception as e:
-            print(f"Error guardando PDF en disco: {e}")
+            admin_and_cass_users = [u for u in db.get_all_users() if u.get("role") in ["admin", "gestor_cass"]]
+            recipients = [u["email"] for u in admin_and_cass_users if u.get("email")]
+            if not recipients:
+                recipients = ["fcendra@sullair.com.ar", "ltoto@sullair.com.ar"]
+            send_inspection_email(inspection_payload, pdf_bytes, pdf_filename, recipients)
+        except Exception as mail_err:
+            print(f"Aviso envío email: {mail_err}")
 
-        # 4. Guardar en session_state para confirmación y descarga exclusiva
+        # 6. Guardar en session_state para confirmación y descarga exclusiva
         st.session_state["last_submission"] = {
             "id": insp_id,
-            "interno": interno_val,
-            "patente": patente_val,
+            "interno": interno_val.strip(),
+            "patente": clean_pat,
             "fecha": fecha_val.strftime("%d/%m/%Y"),
             "inspector": user.get("name"),
             "nc_count": nc_total,
             "pdf_bytes": pdf_bytes,
-            "filename": pdf_filename,
-            "saved_path": pdf_file_path
+            "filename": pdf_filename
         }
         
         st.balloons()

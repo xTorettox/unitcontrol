@@ -58,37 +58,42 @@ def render_dashboard_view(user: dict):
     alerts_vtv = []
     alerts_seguro = []
 
-    for v in all_vehicles:
-        if v.get("vtv_vencimiento"):
+    def _parse_date(d_val):
+        if not d_val:
+            return None
+        d_str = str(d_val).strip()
+        for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%Y/%m/%d", "%d-%m-%Y"]:
             try:
-                v_date = datetime.strptime(v["vtv_vencimiento"], "%Y-%m-%d").date()
-                if v_date <= in_30_days:
-                    days_left = (v_date - today).days
-                    alerts_vtv.append({
-                        "interno": v["interno"],
-                        "patente": v["patente"],
-                        "vencimiento": v["vtv_vencimiento"],
-                        "dias_restantes": days_left,
-                        "tipo": "VTV / RTO"
-                    })
+                return datetime.strptime(d_str, fmt).date()
             except Exception:
                 pass
+        return None
 
-        if v.get("seguro_vencimiento"):
-            try:
-                s_date = datetime.strptime(v["seguro_vencimiento"], "%Y-%m-%d").date()
-                if s_date <= in_30_days:
-                    days_left = (s_date - today).days
-                    alerts_seguro.append({
-                        "interno": v["interno"],
-                        "patente": v["patente"],
-                        "vencimiento": v["seguro_vencimiento"],
-                        "dias_restantes": days_left,
-                        "poliza": v.get("seguro_poliza", "S/D"),
-                        "tipo": "Seguro Vehicular"
-                    })
-            except Exception:
-                pass
+    for v in all_vehicles:
+        v_date = _parse_date(v.get("vtv_vencimiento"))
+        if v_date:
+            days_left = (v_date - today).days
+            if days_left <= 30:
+                alerts_vtv.append({
+                    "interno": v["interno"],
+                    "patente": v["patente"],
+                    "vencimiento": v_date.strftime("%d/%m/%Y"),
+                    "dias_restantes": days_left,
+                    "tipo": "VTV / RTO"
+                })
+
+        s_date = _parse_date(v.get("seguro_vencimiento"))
+        if s_date:
+            days_left = (s_date - today).days
+            if days_left <= 30:
+                alerts_seguro.append({
+                    "interno": v["interno"],
+                    "patente": v["patente"],
+                    "vencimiento": s_date.strftime("%d/%m/%Y"),
+                    "dias_restantes": days_left,
+                    "poliza": v.get("seguro_poliza", "S/D"),
+                    "tipo": "Seguro Vehicular"
+                })
 
     # 2. BANNER DE ALERTAS CRÍTICAS
     if alerts_vtv or alerts_seguro:
