@@ -147,6 +147,23 @@ def send_inspection_email(
         
         msg["Subject"] = f"[{status_tag}] Control FSSA 106: {inspection_data.get('interno')} ({inspection_data.get('patente')}) - {inspector_name}"
 
+        # Detalle de No Conformidades si existen
+        nc_items = inspection_data.get("nc_items", [])
+        nc_list_html = ""
+        if nc_count > 0 and nc_items:
+            nc_rows = ""
+            for it in nc_items:
+                obs_txt = f" - <em>{it.get('observation')}</em>" if it.get('observation') else ""
+                nc_rows += f"<li style='margin-bottom: 5px;'><strong>{it.get('item_name')}</strong>{obs_txt}</li>"
+            nc_list_html = f"""
+            <div style="background-color: #fee2e2; border-left: 4px solid #ef4444; border-radius: 6px; padding: 12px 16px; margin: 15px 0;">
+                <strong style="color: #991b1b; font-size: 0.95rem;">⚠️ Detalle de No Conformidades ({nc_count}):</strong>
+                <ul style="margin: 8px 0 0 0; padding-left: 20px; color: #7f1d1d; font-size: 0.9rem;">
+                    {nc_rows}
+                </ul>
+            </div>
+            """
+
         # Cuerpo del correo en HTML institucional
         html_body = f"""
         <html>
@@ -192,6 +209,8 @@ def send_inspection_email(
                             </td>
                         </tr>
                     </table>
+
+                    {nc_list_html}
 
                     {f'<p><strong>Observaciones:</strong> {inspection_data.get("observaciones")}</p>' if inspection_data.get('observaciones') else ''}
 

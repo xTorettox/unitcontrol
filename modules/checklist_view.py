@@ -52,7 +52,7 @@ def render_pdf_download_block(pdf_bytes: bytes, filename: str, saved_path: str =
                   font-weight: 700; font-size: 1.05rem; border-radius: 8px; box-shadow: 0 3px 8px rgba(0,0,0,0.18);
                   text-align: center; border: none; cursor: pointer; transition: background-color 0.2s ease;">
             <span style="color: #FFFFFF !important; text-decoration: none !important; font-weight: 700;">
-                📥 Descargar Reporte PDF Oficial ({clean_name})
+                📥 Descargar Reporte PDF ({clean_name})
             </span>
         </a>
     </div>
@@ -64,7 +64,7 @@ def render_pdf_download_block(pdf_bytes: bytes, filename: str, saved_path: str =
         with st.expander("👁️ Ver Vista Previa del Reporte FSSA 106 generado", expanded=True):
             img_preview = get_pdf_preview_image(pdf_bytes)
             if img_preview:
-                st.image(img_preview, caption=f"Vista previa oficial del documento: {clean_name}", use_container_width=True)
+                st.image(img_preview, caption=f"Vista previa del documento: {clean_name}", use_container_width=True)
             else:
                 st.info("Vista previa no disponible para este documento.")
 
@@ -180,7 +180,7 @@ def create_digital_signature_stamp(name: str, date_str: str) -> str:
 def render_checklist_view(user: dict):
     db = get_db()
 
-    # PANTALLA DE CONFIRMACIÓN Y DESCARGA (Evita duplicaciones)
+    # PANTALLA DE CONFIRMACIÓN Y DESCARGA (Evita duplicaciones y confirma guardado)
     if st.session_state.get("last_submission"):
         sub = st.session_state["last_submission"]
         st.markdown("### 🎉 ¡Inspección Registrada y Guardada con Éxito!")
@@ -188,14 +188,22 @@ def render_checklist_view(user: dict):
         email_status_html = ""
         if sub.get("email_sent"):
             email_status_html = f"""<p style="margin: 0 0 8px 0; font-size: 0.95rem; color: #15803d;">
-                📧 <strong>Notificación por Email:</strong> Reporte y PDF oficial despachados a: <code>{sub.get('email_recipients', '')}</code>
+                📧 <strong>Notificación por Email:</strong> Reporte y PDF despachados con éxito a: <code>{sub.get('email_recipients', '')}</code>
+            </p>"""
+        else:
+            email_status_html = f"""<p style="margin: 0 0 8px 0; font-size: 0.90rem; color: #64748b;">
+                📧 <strong>Notificación por Email:</strong> Registrado en base de datos. (Casilla SMTP configurable en Panel de Administrador).
             </p>"""
         
+        nc_count_sub = sub.get('nc_count', 0)
+        estado_label = f"⚠️ Contiene {nc_count_sub} No Conformidades (Notificado a CASS)" if nc_count_sub > 0 else "✅ Cumple sin observaciones"
+        estado_color = "#dc2626" if nc_count_sub > 0 else "#16a34a"
+
         with st.container():
             st.markdown(
                 f"""
-                <div style="background: #f0fdf4; border: 2px solid #86efac; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
-                    <h3 style="margin: 0 0 10px 0; color: #166534;">📄 Reporte Oficial FSSA 106 Listo</h3>
+                <div style="background: #f0fdf4; border: 2px solid #86efac; padding: 22px; border-radius: 12px; margin-bottom: 20px;">
+                    <h3 style="margin: 0 0 12px 0; color: #166534;">📄 Reporte FSSA 106 Generado y Guardado</h3>
                     <p style="margin: 0 0 8px 0; font-size: 1.05rem;">
                         <strong>ID de Inspección:</strong> <code>{sub['id'][:8]}</code> | 
                         <strong>Vehículo:</strong> <strong>{sub['interno']}</strong> ({sub['patente']}) | 
@@ -203,11 +211,11 @@ def render_checklist_view(user: dict):
                     </p>
                     <p style="margin: 0 0 8px 0; font-size: 0.95rem; color: #374151;">
                         <strong>Inspector:</strong> {sub.get('inspector', user.get('name'))} | 
-                        <strong>Estado:</strong> {'⚠️ Contiene ' + str(sub['nc_count']) + ' No Conformidades (Notificado a CASS)' if sub['nc_count'] > 0 else '✅ Cumple sin observaciones'}
+                        <strong>Resultado:</strong> <span style="color: {estado_color}; font-weight: 700;">{estado_label}</span>
                     </p>
                     {email_status_html}
-                    <p style="margin: 0; font-size: 0.85rem; color: #15803d;">
-                        💾 <em>El reporte ya quedó guardado en la base de datos Supabase y en tu historial.</em>
+                    <p style="margin: 0; font-size: 0.88rem; color: #15803d;">
+                        💾 <strong>Base de Datos:</strong> El reporte quedó guardado en la nube Supabase y está disponible en la sección de Historial.
                     </p>
                 </div>
                 """,
@@ -224,12 +232,25 @@ def render_checklist_view(user: dict):
             )
 
             st.markdown("<div style='margin-top: 25px;'></div>", unsafe_allow_html=True)
-            if st.button("🔄 Realizar Nueva Inspección", type="secondary", use_container_width=True):
-                # Limpiar estado y reiniciar formulario
-                del st.session_state["last_submission"]
-                if "mode_cargar_otro_vehiculo" in st.session_state:
-                    del st.session_state["mode_cargar_otro_vehiculo"]
-                st.rerun()
+            c_action1, c_action2 = st.columns([1, 1])
+            with c_action1:
+                if st.button("🔄 Realizar Nueva Inspección (Formulario en blanco)", type="primary", use_container_width=True):
+                    # Limpiar estado y reiniciar formulario completamente en blanco
+                    del st.session_state["last_submission"]
+                    if "mode_cargar_otro_vehiculo" in st.session_state:
+                        del st.session_state["mode_cargar_otro_vehiculo"]
+                    keys_to_clear = [k for k in list(st.session_state.keys()) if k.startswith("chk_") or k.startswith("obs_falla_") or k.startswith("photo_") or k.startswith("doc_") or k in ["v_km_assigned", "v_km_cust", "insp_observaciones", "canvas_firma", "upload_sig", "sb_vehiculo_custom", "_last_synced_veh_opt"]]
+                    for k in keys_to_clear:
+                        if k in st.session_state:
+                            del st.session_state[k]
+                    st.rerun()
+
+            with c_action2:
+                hist_btn_label = "📚 Ir a Mi Historial" if user.get("role") == "comercial" else "📚 Ir al Historial de Flota"
+                if st.button(hist_btn_label, use_container_width=True):
+                    del st.session_state["last_submission"]
+                    st.session_state["nav_redirect"] = "historial"
+                    st.rerun()
 
         # Detener la ejecución aquí para NO mostrar el formulario duplicado abajo
         return
@@ -284,7 +305,7 @@ def render_checklist_view(user: dict):
     """, unsafe_allow_html=True)
 
     st.markdown("### 📋 Control de Vehículos (Mensual)")
-    st.caption("Formulario oficial de inspección mensual **FSSA 106 Rev. 06**")
+    st.caption("Formulario de inspección mensual **FSSA 106 Rev. 06**")
 
     # 1. DATOS DEL VEHÍCULO Y CABECERA
     vehicles = db.get_vehicles()
@@ -557,14 +578,17 @@ def render_checklist_view(user: dict):
             for item in sec["items"]:
                 key = f"chk_{sec['title']}_{item}"
 
-                # Resolver valor inicial de session_state si existía
+                # Normalizar y resolver valor inicial de session_state si existía
                 curr_val = st.session_state.get(key, None)
-                if curr_val in ["C", OPT_C := OPTION_C]:
+                if curr_val in ["C", OPTION_C]:
                     default_pill = OPTION_C
-                elif curr_val in ["NC", OPT_NC := OPTION_NC]:
+                    st.session_state[key] = OPTION_C
+                elif curr_val in ["NC", OPTION_NC]:
                     default_pill = OPTION_NC
-                elif curr_val in ["NA", OPT_NA := OPTION_NA]:
+                    st.session_state[key] = OPTION_NC
+                elif curr_val in ["NA", OPTION_NA]:
                     default_pill = OPTION_NA
+                    st.session_state[key] = OPTION_NA
                 else:
                     default_pill = None
 
@@ -774,136 +798,165 @@ def render_checklist_view(user: dict):
     unanswered_total = sum(1 for it in checklist_results if not it.get("status"))
 
     if unanswered_total > 0:
-        st.info(f"⏳ Quedan **{unanswered_total} ítems sin responder** en la planilla de inspección.")
+        c_un1, c_un2 = st.columns([3, 1.5])
+        with c_un1:
+            st.warning(f"⚠️ Quedan **{unanswered_total} de 34 ítems sin responder** en la planilla de inspección.")
+        with c_un2:
+            if st.button("🪄 Marcar pendientes en 'C'", key="btn_fill_pending_c", help="Completa automáticamente las preguntas vacías con C (Cumple)", use_container_width=True):
+                for side in ["LEFT", "RIGHT"]:
+                    for sec in SECTIONS_STRUCTURE[side]:
+                        for item in sec["items"]:
+                            k_it = f"chk_{sec['title']}_{item}"
+                            if not st.session_state.get(k_it):
+                                st.session_state[k_it] = OPTION_C
+                st.rerun()
     elif nc_total > 0:
-        st.warning(f"⚠️ Se detectaron **{nc_total} No Conformidades (NC)** en esta inspección. El reporte quedará marcado para revisión por el equipo de CASS.")
+        st.warning(f"⚠️ Se detectaron **{nc_total} No Conformidades (NC)** en esta inspección. El reporte quedará catalogado como 'Observado' y será notificado al equipo de CASS.")
     else:
-        st.success("✅ Todos los ítems cumplen satisfactoriamente.")
+        st.success("✅ Todos los 34 ítems cumplen satisfactoriamente.")
 
-    if st.button("🚀 Guardar Reporte y Generar PDF Oficial", type="primary", use_container_width=True):
+    # Alerta si faltan datos del vehículo
+    veh_invalido = not interno_val or not patente_val or not marca_val
+    if veh_invalido:
+        st.info("ℹ️ Recuerde seleccionar o ingresar los datos del vehículo (N° Interno, Patente y Marca) en la sección superior.")
+
+    if st.button("🚀 Guardar Reporte y Generar PDF", type="primary", use_container_width=True):
         # Validación 1: Datos de vehículo
-        if not interno_val or not patente_val or not marca_val:
-            st.error("⚠️ Por favor complete los campos obligatorios de Interno, Patente y Marca del vehículo.")
+        if veh_invalido:
+            st.error("⚠️ Complete los datos obligatorios del vehículo (Interno, Patente y Marca) antes de continuar.")
+            st.toast("⚠️ Complete los datos del vehículo.", icon="⚠️")
             return
 
         # Validación 2: Todos los checks deben estar contestados
         if unanswered_total > 0:
             st.error(f"⚠️ Debe completar todos los ítems del formulario antes de guardar. Quedan {unanswered_total} ítems sin responder.")
+            st.toast(f"⚠️ Faltan responder {unanswered_total} ítems.", icon="⚠️")
             return
 
-        # 1. Crear o actualizar vehículo en Supabase
-        clean_pat = patente_val.strip().upper()
-        existing_veh = next((v for v in db.get_vehicles() if v["patente"].upper() == clean_pat), None)
-        
-        veh_payload = {
-            "interno": interno_val.strip(),
-            "patente": clean_pat,
-            "marca": marca_val.strip(),
-            "modelo": modelo_val.strip(),
-            "km_actual": int(km_val),
-            "vtv_vencimiento": vtv_venc_val.strftime("%Y-%m-%d"),
-            "seguro_vencimiento": seguro_venc_val.strftime("%Y-%m-%d"),
-            "tarjeta_verde": tarjeta_verde_val == "SI",
-            "manual": manual_val == "SI"
-        }
-
-        if existing_veh:
-            db.update_vehicle(existing_veh["id"], veh_payload)
-            final_veh_id = existing_veh["id"]
-        else:
-            final_veh_id = db.create_vehicle(veh_payload)
-
-        # Si se eligió recordar como predeterminado
-        if set_as_default:
-            db.update_user(user["id"], {"assigned_vehicle_id": final_veh_id})
-            user["assigned_vehicle_id"] = final_veh_id
-            st.session_state["user"] = user
-            st.session_state["mode_cargar_otro_vehiculo"] = False
-
-        # 2. Preparar payload de inspección
-        inspection_payload = {
-            "fecha": fecha_val.strftime("%Y-%m-%d"),
-            "mes_periodo": fecha_val.strftime("%Y-%m"),
-            "user_id": user["id"],
-            "user_name": user["name"],
-            "vehicle_id": final_veh_id,
-            "interno": interno_val.strip(),
-            "patente": clean_pat,
-            "marca": marca_val.strip(),
-            "modelo": modelo_val.strip(),
-            "km": int(km_val),
-            "tarjeta_verde_si_no": tarjeta_verde_val,
-            "manual_si_no": manual_val,
-            "vtv_si_no": vtv_val,
-            "vtv_vencimiento": vtv_venc_val.strftime("%d/%m/%Y"),
-            "seguro_si_no": seguro_val,
-            "seguro_vencimiento": seguro_venc_val.strftime("%d/%m/%Y"),
-            "observaciones": observaciones_val,
-            "realizo_nombre": user["name"],
-            "user_email": user.get("email", ""),
-            "realizo_firma_png": final_realizo_sig_b64,
-            "responsable_sitio_nombre": "",
-            "responsable_sitio_firma_png": ""
-        }
-
-        # 3. Guardar en Base de Datos Supabase
-        insp_id = db.save_inspection(inspection_payload, checklist_results, uploaded_photos)
-
-        # 4. Generar PDF oficial en memoria
-        clean_pat_file = sanitize_filename(clean_pat).replace(".pdf", "")
-        clean_date_str = fecha_val.strftime('%Y%m%d')
-        pdf_filename = f"FSSA106_{clean_pat_file}_{clean_date_str}_{insp_id[:8]}.pdf"
-        
-        pdf_buffer = io.BytesIO()
-        logo_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "logo_sullair.png")
-        
-        pdf_payload = dict(inspection_payload)
-        pdf_payload["fecha"] = fecha_val.strftime("%d/%m/%Y")
-        
-        generate_sullair_pdf(pdf_payload, checklist_results, pdf_buffer, logo_path)
-        pdf_bytes = pdf_buffer.getvalue()
-
-        # 5. Enviar notificación por correo con PDF adjunto a perfiles CASS, inspector y correos adicionales
-        email_sent = False
-        email_recipients_str = ""
-        try:
-            # a) Todos los usuarios con perfil CASS (gestor_cass)
-            cass_users = [u for u in db.get_all_users() if u.get("role") == "gestor_cass"]
-            recipients = [u["email"] for u in cass_users if u.get("email")]
+        with st.spinner("💾 Guardando inspección en base de datos Supabase y despachando correos automáticos..."):
+            # 1. Crear o actualizar vehículo en Supabase
+            clean_pat = patente_val.strip().upper()
+            existing_veh = next((v for v in db.get_vehicles() if v["patente"].upper() == clean_pat), None)
             
-            # b) Correo del usuario que realizó / cargó la checklist
-            user_email = user.get("email")
-            if user_email:
-                recipients.append(user_email)
+            veh_payload = {
+                "interno": interno_val.strip(),
+                "patente": clean_pat,
+                "marca": marca_val.strip(),
+                "modelo": modelo_val.strip(),
+                "km_actual": int(km_val),
+                "vtv_vencimiento": vtv_venc_val.strftime("%Y-%m-%d"),
+                "seguro_vencimiento": seguro_venc_val.strftime("%Y-%m-%d"),
+                "tarjeta_verde": tarjeta_verde_val == "SI",
+                "manual": manual_val == "SI"
+            }
+
+            if existing_veh:
+                db.update_vehicle(existing_veh["id"], veh_payload)
+                final_veh_id = existing_veh["id"]
+            else:
+                final_veh_id = db.create_vehicle(veh_payload)
+
+            # Si se eligió recordar como predeterminado
+            if set_as_default:
+                db.update_user(user["id"], {"assigned_vehicle_id": final_veh_id})
+                user["assigned_vehicle_id"] = final_veh_id
+                st.session_state["user"] = user
+                st.session_state["mode_cargar_otro_vehiculo"] = False
+
+            # 2. Preparar payload de inspección con NC count y detalle
+            nc_items_list = [it for it in checklist_results if it.get("status") == "NC"]
+            inspection_payload = {
+                "fecha": fecha_val.strftime("%Y-%m-%d"),
+                "mes_periodo": fecha_val.strftime("%Y-%m"),
+                "user_id": user["id"],
+                "user_name": user["name"],
+                "vehicle_id": final_veh_id,
+                "interno": interno_val.strip(),
+                "patente": clean_pat,
+                "marca": marca_val.strip(),
+                "modelo": modelo_val.strip(),
+                "km": int(km_val),
+                "tarjeta_verde_si_no": tarjeta_verde_val,
+                "manual_si_no": manual_val,
+                "vtv_si_no": vtv_val,
+                "vtv_vencimiento": vtv_venc_val.strftime("%d/%m/%Y"),
+                "seguro_si_no": seguro_val,
+                "seguro_vencimiento": seguro_venc_val.strftime("%d/%m/%Y"),
+                "observaciones": observaciones_val,
+                "realizo_nombre": user["name"],
+                "user_email": user.get("email", ""),
+                "realizo_firma_png": final_realizo_sig_b64,
+                "responsable_sitio_nombre": "",
+                "responsable_sitio_firma_png": "",
+                "status": "observado" if nc_total > 0 else "pendiente_revision",
+                "nc_count": nc_total,
+                "nc_items": nc_items_list
+            }
+
+            # 3. Guardar en Base de Datos Supabase
+            insp_id = db.save_inspection(inspection_payload, checklist_results, uploaded_photos)
+
+            # 4. Generar PDF oficial en memoria
+            clean_pat_file = sanitize_filename(clean_pat).replace(".pdf", "")
+            clean_date_str = fecha_val.strftime('%Y%m%d')
+            pdf_filename = f"FSSA106_{clean_pat_file}_{clean_date_str}_{insp_id[:8]}.pdf"
             
-            # c) Correos adicionales registrados por el Administrador
-            extra_emails = db.get_extra_recipients()
-            recipients.extend(extra_emails)
+            pdf_buffer = io.BytesIO()
+            logo_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "logo_sullair.png")
+            
+            pdf_payload = dict(inspection_payload)
+            pdf_payload["fecha"] = fecha_val.strftime("%d/%m/%Y")
+            
+            generate_sullair_pdf(pdf_payload, checklist_results, pdf_buffer, logo_path)
+            pdf_bytes = pdf_buffer.getvalue()
 
-            # d) Limpiar duplicados y vacíos
-            recipients = [r.strip().lower() for r in recipients if r and "@" in r]
-            recipients = list(dict.fromkeys(recipients))
+            # 5. Enviar notificación por correo con PDF adjunto a perfiles CASS, inspector y correos adicionales
+            email_sent = False
+            email_recipients_str = ""
+            try:
+                # a) Todos los usuarios con perfil CASS (gestor_cass)
+                cass_users = [u for u in db.get_all_users() if u.get("role") == "gestor_cass"]
+                recipients = [u["email"] for u in cass_users if u.get("email")]
+                
+                # b) Correo del usuario que realizó / cargó la checklist
+                user_email = user.get("email")
+                if user_email:
+                    recipients.append(user_email)
+                
+                # c) Correos adicionales registrados por el Administrador
+                extra_emails = db.get_extra_recipients()
+                recipients.extend(extra_emails)
 
-            if recipients:
-                email_sent = send_inspection_email(inspection_payload, pdf_bytes, pdf_filename, recipients)
-                if email_sent:
-                    email_recipients_str = ", ".join(recipients)
-        except Exception as mail_err:
-            print(f"Aviso envío email: {mail_err}")
+                # d) Limpiar duplicados y vacíos
+                recipients = [r.strip().lower() for r in recipients if r and "@" in r]
+                recipients = list(dict.fromkeys(recipients))
 
-        # 6. Guardar en session_state para confirmación y descarga exclusiva
-        st.session_state["last_submission"] = {
-            "id": insp_id,
-            "interno": interno_val.strip(),
-            "patente": clean_pat,
-            "fecha": fecha_val.strftime("%d/%m/%Y"),
-            "inspector": user.get("name"),
-            "nc_count": nc_total,
-            "pdf_bytes": pdf_bytes,
-            "filename": pdf_filename,
-            "email_sent": email_sent,
-            "email_recipients": email_recipients_str
-        }
-        
-        st.balloons()
-        st.rerun()
+                if recipients:
+                    email_sent = send_inspection_email(inspection_payload, pdf_bytes, pdf_filename, recipients)
+                    if email_sent:
+                        email_recipients_str = ", ".join(recipients)
+            except Exception as mail_err:
+                print(f"Aviso envío email: {mail_err}")
+
+            # 6. Limpiar campos del formulario en session_state para reiniciar en blanco
+            keys_to_clear = [k for k in list(st.session_state.keys()) if k.startswith("chk_") or k.startswith("obs_falla_") or k.startswith("photo_") or k.startswith("doc_") or k in ["v_km_assigned", "v_km_cust", "v_interno_cust", "v_patente_cust", "v_marca_cust", "v_modelo_cust", "insp_observaciones", "canvas_firma", "upload_sig", "sb_vehiculo_custom", "_last_synced_veh_opt"]]
+            for k in keys_to_clear:
+                if k in st.session_state:
+                    del st.session_state[k]
+
+            # 7. Guardar en session_state para confirmación y descarga exclusiva
+            st.session_state["last_submission"] = {
+                "id": insp_id,
+                "interno": interno_val.strip(),
+                "patente": clean_pat,
+                "fecha": fecha_val.strftime("%d/%m/%Y"),
+                "inspector": user.get("name"),
+                "nc_count": nc_total,
+                "pdf_bytes": pdf_bytes,
+                "filename": pdf_filename,
+                "email_sent": email_sent,
+                "email_recipients": email_recipients_str
+            }
+            
+            st.balloons()
+            st.rerun()

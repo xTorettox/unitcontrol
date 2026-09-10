@@ -98,10 +98,19 @@ def main():
     else:  # admin
         nav_options = ["📊 Dashboard CASS", "📋 Cargar Inspección", "📚 Historial de Flota", "⚙️ Administración", "👤 Mi Perfil y Firma"]
 
+    # Redirección programática si viene de confirmación de envío
+    default_nav_idx = 0
+    if st.session_state.get("nav_redirect") == "historial":
+        del st.session_state["nav_redirect"]
+        if role == "comercial":
+            default_nav_idx = 1
+        else:
+            default_nav_idx = 2
+
     # Barra lateral / Selector de vista
     with st.sidebar:
         st.markdown(f"### 📍 Navegación")
-        selected_nav = st.radio("Secciones", options=nav_options, label_visibility="collapsed")
+        selected_nav = st.radio("Secciones", options=nav_options, index=default_nav_idx, label_visibility="collapsed")
         
         st.markdown("---")
         st.markdown(f"**Conectado como:**")
