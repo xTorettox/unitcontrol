@@ -1,6 +1,6 @@
-# SullArge - Control de Vehículos (FSSA 106 Rev. 06)
+# SullArg - Control de Vehículos (FSSA 106 Rev. 06)
 
-Sistema integral de gestión de inspecciones vehiculares mensuales para el equipo Comercial y auditoría del equipo CASS de **Sullair Argentina**.
+Sistema integral de gestión de inspecciones vehiculares mensuales para el equipo Comercial y auditoría del equipo CASS de **SullArg**.
 
 ---
 
