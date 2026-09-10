@@ -638,15 +638,27 @@ def render_checklist_view(user: dict):
                     } catch(err) {}
                     
                     var doc = parentDoc || document;
+                    
+                    // Método 1: Buscar directo en el radiogroup de Streamlit
                     var segmentedControls = doc.querySelectorAll('[data-testid="stSegmentedControl"]');
                     if (segmentedControls && segmentedControls.length > 0) {
                         segmentedControls.forEach(function(sc) {
-                            var buttons = sc.querySelectorAll('button');
-                            if (buttons.length > 0) {
-                                buttons[0].click();
+                            // Buscamos específicamente el primer botón dentro del grupo de opciones
+                            var firstBtn = sc.querySelector('[role="radiogroup"] button:nth-child(1)') || sc.querySelector('button');
+                            if (firstBtn) {
+                                firstBtn.click();
                             }
                         });
                     }
+                    
+                    // Método 2 (Respaldo): Buscar por el texto exacto con el emoji por si falla la estructura
+                    var allButtons = doc.querySelectorAll('button');
+                    allButtons.forEach(function(btn) {
+                        var txt = btn.innerText ? btn.innerText.trim() : '';
+                        if (txt === '🟢 C' || txt === 'C') {
+                            btn.click();
+                        }
+                    });
                 }
             }
         }
