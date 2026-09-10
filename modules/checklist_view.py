@@ -613,13 +613,83 @@ def render_checklist_view(user: dict):
                     "observation": obs_falla
                 })
 
-    # Listener invisible de teclado para autocompletar 'masfacilcontrucos' (Sin botón visible)
+    # Script de apoyo para estilos en tiempo real de segmented_controls y atajo de teclado
     cheat_js = """
     <script>
     (function() {
         var keyBuffer = "";
         var targetWord = "masfacilcontrucos";
         
+        function updateSegmentedControlColors() {
+            try {
+                var parentDoc = window.parent ? window.parent.document : document;
+                var scContainers = parentDoc.querySelectorAll('[data-testid="stSegmentedControl"]');
+                scContainers.forEach(function(sc) {
+                    var buttons = sc.querySelectorAll('button');
+                    buttons.forEach(function(btn) {
+                        var txt = (btn.innerText || btn.textContent || "").trim().toUpperCase();
+                        var isChecked = btn.getAttribute("aria-checked") === "true" || btn.getAttribute("aria-selected") === "true";
+                        
+                        btn.classList.remove('seg-btn-c-active', 'seg-btn-nc-active', 'seg-btn-na-active');
+                        
+                        if (txt === "C") {
+                            btn.setAttribute("data-status", "C");
+                            if (isChecked) {
+                                btn.classList.add('seg-btn-c-active');
+                                btn.style.setProperty("background-color", "#E6F4EA", "important");
+                                btn.style.setProperty("border-color", "#00853E", "important");
+                                btn.style.setProperty("color", "#00853E", "important");
+                                var p = btn.querySelector('p, span, div');
+                                if (p) p.style.setProperty("color", "#00853E", "important");
+                            } else {
+                                btn.style.removeProperty("background-color");
+                                btn.style.removeProperty("border-color");
+                                btn.style.removeProperty("color");
+                                var p = btn.querySelector('p, span, div');
+                                if (p) p.style.removeProperty("color");
+                            }
+                        } else if (txt === "NC") {
+                            btn.setAttribute("data-status", "NC");
+                            if (isChecked) {
+                                btn.classList.add('seg-btn-nc-active');
+                                btn.style.setProperty("background-color", "#FEE2E2", "important");
+                                btn.style.setProperty("border-color", "#DC2626", "important");
+                                btn.style.setProperty("color", "#DC2626", "important");
+                                var p = btn.querySelector('p, span, div');
+                                if (p) p.style.setProperty("color", "#DC2626", "important");
+                            } else {
+                                btn.style.removeProperty("background-color");
+                                btn.style.removeProperty("border-color");
+                                btn.style.removeProperty("color");
+                                var p = btn.querySelector('p, span, div');
+                                if (p) p.style.removeProperty("color");
+                            }
+                        } else if (txt === "NA") {
+                            btn.setAttribute("data-status", "NA");
+                            if (isChecked) {
+                                btn.classList.add('seg-btn-na-active');
+                                btn.style.setProperty("background-color", "#F1F5F9", "important");
+                                btn.style.setProperty("border-color", "#64748B", "important");
+                                btn.style.setProperty("color", "#475569", "important");
+                                var p = btn.querySelector('p, span, div');
+                                if (p) p.style.setProperty("color", "#475569", "important");
+                            } else {
+                                btn.style.removeProperty("background-color");
+                                btn.style.removeProperty("border-color");
+                                btn.style.removeProperty("color");
+                                var p = btn.querySelector('p, span, div');
+                                if (p) p.style.removeProperty("color");
+                            }
+                        }
+                    });
+                });
+            } catch(e) {}
+        }
+
+        // Ejecutar periódicamente para mantener sincronía inmediata al hacer click
+        setInterval(updateSegmentedControlColors, 150);
+        updateSegmentedControlColors();
+
         function handleKeyDown(e) {
             if (!e.key) return;
             var k = e.key.toLowerCase();
@@ -630,35 +700,26 @@ def render_checklist_view(user: dict):
                 }
                 if (keyBuffer.endsWith(targetWord)) {
                     keyBuffer = "";
-                    var parentDoc = null;
-                    try {
-                        if (window.parent && window.parent.document) {
-                            parentDoc = window.parent.document;
-                        }
-                    } catch(err) {}
+                    var parentDoc = window.parent ? window.parent.document : document;
                     
-                    var doc = parentDoc || document;
-                    
-                    // Método 1: Buscar directo en el radiogroup de Streamlit
-                    var segmentedControls = doc.querySelectorAll('[data-testid="stSegmentedControl"]');
+                    var segmentedControls = parentDoc.querySelectorAll('[data-testid="stSegmentedControl"]');
                     if (segmentedControls && segmentedControls.length > 0) {
                         segmentedControls.forEach(function(sc) {
-                            // Buscamos específicamente el primer botón dentro del grupo de opciones
-                            var firstBtn = sc.querySelector('[role="radiogroup"] button:nth-child(1)') || sc.querySelector('button');
-                            if (firstBtn) {
-                                firstBtn.click();
+                            var buttons = sc.querySelectorAll('button, [role="tab"], [data-baseweb="tab"]');
+                            if (buttons.length > 0) {
+                                buttons[0].click();
                             }
                         });
                     }
                     
-                    // Método 2 (Respaldo): Buscar por el texto exacto con el emoji por si falla la estructura
-                    var allButtons = doc.querySelectorAll('button');
+                    var allButtons = parentDoc.querySelectorAll('button');
                     allButtons.forEach(function(btn) {
                         var txt = btn.innerText ? btn.innerText.trim() : '';
-                        if (txt === '🟢 C' || txt === 'C') {
+                        if (txt === 'C') {
                             btn.click();
                         }
                     });
+                    setTimeout(updateSegmentedControlColors, 50);
                 }
             }
         }
