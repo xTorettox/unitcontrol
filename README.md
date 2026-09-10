@@ -1,4 +1,4 @@
-# Sullair Argentina - Control de Vehículos (FSSA 106 Rev. 06)
+# SullArge - Control de Vehículos (FSSA 106 Rev. 06)
 
 Sistema integral de gestión de inspecciones vehiculares mensuales para el equipo Comercial y auditoría del equipo CASS de **Sullair Argentina**.
 
@@ -33,18 +33,6 @@ Sistema integral de gestión de inspecciones vehiculares mensuales para el equip
    - **Gestor CASS**: Dashboard, monitoreo general, revisión y firma de reportes.
    - **Responsable de Flota**: Control de documentación, seguimiento y firma de sitio.
    - **Comercial / Inspector**: Carga rápida con datos precargados de su vehículo asignado e historial propio.
-
----
-
-## 👥 Cuentas de Demostración Preconfiguradas
-
-| **Administrador (Federico Cendra)** | `fcendra@sullair.com.ar` (`fcendra`) | `C4n1ch3r1426` | Todos los accesos |
-| **Comercial (Lucas Toto)** | `ltoto@sullair.com.ar` (`ltoto`) | `esmeralda26` | INT-104 (Toyota Hilux) |
-| **Comercial (Demo)** | `comercial@sullair.com.ar` | `comercial` | INT-104 (Toyota Hilux) |
-| **Gestor CASS** | `cass@sullair.com.ar` | `cass` | General / Auditoría |
-| **Responsable Flota** | `flota@sullair.com.ar` | `flota` | General / Flota |
-| **Administrador (Demo)** | `admin@sullair.com.ar` | `admin` | Todos los accesos |
-
 ---
 
 ## 💻 Instrucciones de Ejecución
