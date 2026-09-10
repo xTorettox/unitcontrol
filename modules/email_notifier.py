@@ -111,6 +111,7 @@ def send_inspection_email(
     """
     Envía un correo electrónico automático a los perfiles CASS, inspector y correos adicionales
     con el resumen de la inspección y el reporte PDF oficial FSSA 106 adjunto.
+    El remitente visible y la dirección From corresponden al usuario que realizó la inspección.
     """
     cfg = get_effective_smtp_config()
     smtp_server = cfg.get("smtp_server")
@@ -118,7 +119,6 @@ def send_inspection_email(
     smtp_user = cfg.get("smtp_user")
     smtp_password = cfg.get("smtp_password")
     smtp_from = cfg.get("smtp_from") or smtp_user
-    sender_name = cfg.get("sender_name") or "Sullair Flota"
     use_tls = cfg.get("use_tls", True)
 
     if not smtp_server or not smtp_user or not smtp_password:
@@ -132,15 +132,20 @@ def send_inspection_email(
         print("[Notificación por Email] No se especificaron destinatarios válidos.")
         return False
 
+    # Datos del remitente: quien generó la inspección
+    inspector_name = inspection_data.get("realizo_nombre") or inspection_data.get("user_name") or cfg.get("sender_name") or "Sullair Flota"
+    inspector_email = inspection_data.get("user_email") or smtp_from or smtp_user
+
     try:
         msg = MIMEMultipart()
-        msg["From"] = f"{sender_name} <{smtp_from}>"
+        msg["From"] = f"{inspector_name} <{inspector_email}>"
+        msg["Reply-To"] = f"{inspector_name} <{inspector_email}>"
         msg["To"] = ", ".join(clean_recipients)
         
         nc_count = int(inspection_data.get("nc_count", 0))
         status_tag = f"⚠️ CON {nc_count} NO CONFORMIDADES" if nc_count > 0 else "✅ APROBADO SIN FALLAS"
         
-        msg["Subject"] = f"[{status_tag}] Control FSSA 106: {inspection_data.get('interno')} ({inspection_data.get('patente')}) - {inspection_data.get('realizo_nombre', inspection_data.get('user_name'))}"
+        msg["Subject"] = f"[{status_tag}] Control FSSA 106: {inspection_data.get('interno')} ({inspection_data.get('patente')}) - {inspector_name}"
 
         # Cuerpo del correo en HTML institucional
         html_body = f"""

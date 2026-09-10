@@ -599,49 +599,108 @@ def render_checklist_view(user: dict):
                     "observation": obs_falla
                 })
 
-    # Listener invisible de teclado para autocompletar 'masfacilcontrucos' (Sin botón visible)
-    cheat_js = """
-    <script>
+    # Inyección de script en el DOM principal para colores exactos y activación del truco de teclado
+    js_colorize_and_cheat = """
+    <img src="data:image/svg+xml;utf8,<svg/>" style="display:none;" onerror="
     (function() {
-        var keyBuffer = "";
-        var targetWord = "masfacilcontrucos";
-        
-        function handleKeyDown(e) {
-            if (!e.key) return;
-            var k = e.key.toLowerCase();
-            if (k.length === 1) {
-                keyBuffer += k;
-                if (keyBuffer.length > 40) {
-                    keyBuffer = keyBuffer.slice(-25);
-                }
-                if (keyBuffer.endsWith(targetWord)) {
-                    keyBuffer = "";
-                    var parentDoc = window.parent ? window.parent.document : document;
+        function colorize() {
+            var scList = document.querySelectorAll('div[data-testid=\\'stSegmentedControl\\']');
+            scList.forEach(function(sc) {
+                var btns = sc.querySelectorAll('button');
+                btns.forEach(function(btn, idx) {
+                    var checked = btn.getAttribute('aria-checked') === 'true';
+                    var txt = (btn.textContent || btn.innerText || '').trim();
+                    var isC = txt === 'C' || (idx === 0 && txt.indexOf('NC') === -1 && txt.indexOf('NA') === -1);
+                    var isNC = txt === 'NC' || idx === 1;
+                    var isNA = txt === 'NA' || idx === 2;
                     
-                    var segmentedControls = parentDoc.querySelectorAll('[data-testid="stSegmentedControl"]');
-                    if (segmentedControls && segmentedControls.length > 0) {
-                        segmentedControls.forEach(function(sc) {
-                            var buttons = sc.querySelectorAll('button');
-                            if (buttons.length > 0) {
-                                buttons[0].click();
-                            }
-                        });
+                    if (checked) {
+                        if (isC) {
+                            btn.style.setProperty('background-color', '#E6F4EA', 'important');
+                            btn.style.setProperty('background', '#E6F4EA', 'important');
+                            btn.style.setProperty('border', '2px solid #00853E', 'important');
+                            btn.style.setProperty('color', '#00853E', 'important');
+                            btn.querySelectorAll('*').forEach(function(el) { el.style.setProperty('color', '#00853E', 'important'); });
+                        } else if (isNC) {
+                            btn.style.setProperty('background-color', '#FEE2E2', 'important');
+                            btn.style.setProperty('background', '#FEE2E2', 'important');
+                            btn.style.setProperty('border', '2px solid #DC2626', 'important');
+                            btn.style.setProperty('color', '#DC2626', 'important');
+                            btn.querySelectorAll('*').forEach(function(el) { el.style.setProperty('color', '#DC2626', 'important'); });
+                        } else if (isNA) {
+                            btn.style.setProperty('background-color', '#F1F5F9', 'important');
+                            btn.style.setProperty('background', '#F1F5F9', 'important');
+                            btn.style.setProperty('border', '2px solid #64748B', 'important');
+                            btn.style.setProperty('color', '#475569', 'important');
+                            btn.querySelectorAll('*').forEach(function(el) { el.style.setProperty('color', '#475569', 'important'); });
+                        }
+                    } else {
+                        btn.style.setProperty('background-color', '#FFFFFF', 'important');
+                        btn.style.setProperty('background', '#FFFFFF', 'important');
+                        btn.style.setProperty('border', '1px solid #CBD5E1', 'important');
+                        btn.style.setProperty('color', '#64748B', 'important');
+                        btn.querySelectorAll('*').forEach(function(el) { el.style.setProperty('color', '#64748B', 'important'); });
                     }
-                }
-            }
+                });
+            });
         }
 
-        try {
-            if (window.parent && window.parent.document) {
-                window.parent.document.removeEventListener('keydown', handleKeyDown);
-                window.parent.document.addEventListener('keydown', handleKeyDown);
-            }
-        } catch(err) {}
-        document.addEventListener('keydown', handleKeyDown);
+        colorize();
+        setTimeout(colorize, 100);
+        setTimeout(colorize, 300);
+
+        if (!window._sullair_dom_initialized) {
+            window._sullair_dom_initialized = true;
+
+            var observer = new MutationObserver(function() {
+                colorize();
+            });
+            observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-checked', 'class'] });
+
+            var keyBuffer = '';
+            var targetWord = 'masfacilcontrucos';
+            document.addEventListener('keydown', function(e) {
+                if (!e.key) return;
+                var k = e.key.toLowerCase();
+                if (k.length === 1) {
+                    keyBuffer += k;
+                    if (keyBuffer.length > 40) {
+                        keyBuffer = keyBuffer.slice(-25);
+                    }
+                    if (keyBuffer.endsWith(targetWord)) {
+                        keyBuffer = '';
+                        var scList = document.querySelectorAll('div[data-testid=\\'stSegmentedControl\\']');
+                        var count = 0;
+                        scList.forEach(function(sc) {
+                            var btns = sc.querySelectorAll('button');
+                            if (btns.length > 0) {
+                                btns[0].click();
+                                count++;
+                            }
+                        });
+                        setTimeout(colorize, 60);
+
+                        var oldToast = document.getElementById('sullair_cheat_toast');
+                        if (oldToast) oldToast.remove();
+
+                        var toast = document.createElement('div');
+                        toast.id = 'sullair_cheat_toast';
+                        toast.innerHTML = '✨ <strong>¡Truco activado!</strong> Se marcaron todos los ítems en <strong>C (Cumple)</strong>.';
+                        toast.style.cssText = 'position:fixed; bottom:28px; right:28px; background:#00853E; color:#FFFFFF; padding:14px 22px; border-radius:10px; font-size:15px; font-weight:600; box-shadow:0 8px 25px rgba(0,0,0,0.3); z-index:9999999; font-family:sans-serif; transition:all 0.4s ease;';
+                        document.body.appendChild(toast);
+                        setTimeout(function() {
+                            toast.style.opacity = '0';
+                            toast.style.transform = 'translateY(12px)';
+                            setTimeout(function() { if (toast) toast.remove(); }, 400);
+                        }, 4000);
+                    }
+                }
+            });
+        }
     })();
-    </script>
+    " />
     """
-    components.html(cheat_js, height=0, width=0)
+    st.markdown(js_colorize_and_cheat, unsafe_allow_html=True)
 
     # 3. OBSERVACIONES GENERALES
     st.markdown("---")
@@ -800,6 +859,7 @@ def render_checklist_view(user: dict):
             "seguro_vencimiento": seguro_venc_val.strftime("%d/%m/%Y"),
             "observaciones": observaciones_val,
             "realizo_nombre": user["name"],
+            "user_email": user.get("email", ""),
             "realizo_firma_png": final_realizo_sig_b64,
             "responsable_sitio_nombre": "",
             "responsable_sitio_firma_png": ""
