@@ -34,16 +34,6 @@ Sistema integral de gestión de inspecciones vehiculares mensuales para el equip
    - **Responsable de Flota**: Control de documentación, seguimiento y firma de sitio.
    - **Comercial / Inspector**: Carga rápida con datos precargados de su vehículo asignado e historial propio.
 
----
-
-## 👥 Cuentas de Demostración Preconfiguradas
-
-| **Administrador (Federico Cendra)** | `fcendra@sullair.com.ar` (`fcendra`) | `C4n1ch3r1426` | Todos los accesos |
-| **Comercial (Lucas Toto)** | `ltoto@sullair.com.ar` (`ltoto`) | `esmeralda26` | INT-104 (Toyota Hilux) |
-| **Comercial (Demo)** | `comercial@sullair.com.ar` | `comercial` | INT-104 (Toyota Hilux) |
-| **Gestor CASS** | `cass@sullair.com.ar` | `cass` | General / Auditoría |
-| **Responsable Flota** | `flota@sullair.com.ar` | `flota` | General / Flota |
-| **Administrador (Demo)** | `admin@sullair.com.ar` | `admin` | Todos los accesos |
 
 ---
 

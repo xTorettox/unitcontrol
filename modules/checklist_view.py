@@ -179,6 +179,7 @@ def create_digital_signature_stamp(name: str, date_str: str) -> str:
 
 def render_checklist_view(user: dict):
     db = get_db()
+    form_ver = st.session_state.get("chk_form_ver", 1)
 
     # PANTALLA DE CONFIRMACIÓN Y DESCARGA (Evita duplicaciones y confirma guardado)
     if st.session_state.get("last_submission"):
@@ -188,7 +189,7 @@ def render_checklist_view(user: dict):
         email_status_html = ""
         if sub.get("email_sent"):
             email_status_html = f"""<p style="margin: 0 0 8px 0; font-size: 0.95rem; color: #15803d;">
-                📧 <strong>Notificación por Email:</strong> Reporte y PDF despachados con éxito a: <code>{sub.get('email_recipients', '')}</code>
+                📧 <strong>Notificación por Email:</strong> Reporte y PDF oficial despachados con éxito a: <code>{sub.get('email_recipients', '')}</code>
             </p>"""
         else:
             email_status_html = f"""<p style="margin: 0 0 8px 0; font-size: 0.90rem; color: #64748b;">
@@ -203,7 +204,7 @@ def render_checklist_view(user: dict):
             st.markdown(
                 f"""
                 <div style="background: #f0fdf4; border: 2px solid #86efac; padding: 22px; border-radius: 12px; margin-bottom: 20px;">
-                    <h3 style="margin: 0 0 12px 0; color: #166534;">📄 Reporte FSSA 106 Generado y Guardado</h3>
+                    <h3 style="margin: 0 0 12px 0; color: #166534;">📄 Reporte Oficial FSSA 106 Generado y Guardado</h3>
                     <p style="margin: 0 0 8px 0; font-size: 1.05rem;">
                         <strong>ID de Inspección:</strong> <code>{sub['id'][:8]}</code> | 
                         <strong>Vehículo:</strong> <strong>{sub['interno']}</strong> ({sub['patente']}) | 
@@ -235,20 +236,18 @@ def render_checklist_view(user: dict):
             c_action1, c_action2 = st.columns([1, 1])
             with c_action1:
                 if st.button("🔄 Realizar Nueva Inspección (Formulario en blanco)", type="primary", use_container_width=True):
-                    # Limpiar estado y reiniciar formulario completamente en blanco
+                    # Incrementar la versión del formulario para iniciar en blanco total
                     del st.session_state["last_submission"]
-                    if "mode_cargar_otro_vehiculo" in st.session_state:
-                        del st.session_state["mode_cargar_otro_vehiculo"]
-                    keys_to_clear = [k for k in list(st.session_state.keys()) if k.startswith("chk_") or k.startswith("obs_falla_") or k.startswith("photo_") or k.startswith("doc_") or k in ["v_km_assigned", "v_km_cust", "insp_observaciones", "canvas_firma", "upload_sig", "sb_vehiculo_custom", "_last_synced_veh_opt"]]
-                    for k in keys_to_clear:
-                        if k in st.session_state:
-                            del st.session_state[k]
+                    st.session_state["chk_form_ver"] = form_ver + 1
+                    st.session_state.pop("mode_cargar_otro_vehiculo", None)
+                    st.session_state.pop("_last_synced_veh_opt", None)
                     st.rerun()
 
             with c_action2:
                 hist_btn_label = "📚 Ir a Mi Historial" if user.get("role") == "comercial" else "📚 Ir al Historial de Flota"
                 if st.button(hist_btn_label, use_container_width=True):
                     del st.session_state["last_submission"]
+                    st.session_state["chk_form_ver"] = form_ver + 1
                     st.session_state["nav_redirect"] = "historial"
                     st.rerun()
 
@@ -305,7 +304,7 @@ def render_checklist_view(user: dict):
     """, unsafe_allow_html=True)
 
     st.markdown("### 📋 Control de Vehículos (Mensual)")
-    st.caption("Formulario de inspección mensual **FSSA 106 Rev. 06**")
+    st.caption("Formulario oficial de inspección mensual **FSSA 106 Rev. 06**")
 
     # 1. DATOS DEL VEHÍCULO Y CABECERA
     vehicles = db.get_vehicles()
@@ -318,7 +317,7 @@ def render_checklist_view(user: dict):
     with st.expander("🚗 Datos del Vehículo e Inspección", expanded=True):
         col_f1, col_f2 = st.columns([1, 2])
         with col_f1:
-            fecha_val = st.date_input("Fecha de Inspección", value=date.today(), key="insp_fecha")
+            fecha_val = st.date_input("Fecha de Inspección", value=date.today(), key=f"insp_fecha_{form_ver}")
         with col_f2:
             st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
             if assigned_v and not is_override:
@@ -393,7 +392,7 @@ def render_checklist_view(user: dict):
                     value=0,
                     min_value=0,
                     step=100,
-                    key="v_km_assigned",
+                    key=f"v_km_assigned_{form_ver}",
                     help="Ingrese el kilometraje actual registrado en el odómetro."
                 )
             with c_act_v2:
@@ -414,22 +413,22 @@ def render_checklist_view(user: dict):
             st.markdown("#### 📄 Documentación del Vehículo")
             col_d1, col_d2 = st.columns(2)
             with col_d1:
-                tarjeta_verde_val = st.radio("Tarjeta Verde", options=["SI", "NO"], horizontal=True, key="doc_tarjeta_assigned")
-                manual_val = st.radio("Manual del Vehículo", options=["SI", "NO"], horizontal=True, key="doc_manual_assigned")
+                tarjeta_verde_val = st.radio("Tarjeta Verde", options=["SI", "NO"], horizontal=True, key=f"doc_tarjeta_assigned_{form_ver}")
+                manual_val = st.radio("Manual del Vehículo", options=["SI", "NO"], horizontal=True, key=f"doc_manual_assigned_{form_ver}")
             with col_d2:
                 col_vtv1, col_vtv2 = st.columns([1, 2])
                 with col_vtv1:
-                    vtv_val = st.radio("VTV / RTO", options=["SI", "NO"], horizontal=True, key="doc_vtv_assigned")
+                    vtv_val = st.radio("VTV / RTO", options=["SI", "NO"], horizontal=True, key=f"doc_vtv_assigned_{form_ver}")
                 with col_vtv2:
                     default_vtv_date = vtv_date_obj or date.today()
-                    vtv_venc_val = st.date_input("Vencimiento VTV", value=default_vtv_date, key="doc_vtv_venc_assigned")
+                    vtv_venc_val = st.date_input("Vencimiento VTV", value=default_vtv_date, key=f"doc_vtv_venc_assigned_{form_ver}")
 
                 col_seg1, col_seg2 = st.columns([1, 2])
                 with col_seg1:
-                    seguro_val = st.radio("Seguro vehicular", options=["SI", "NO"], horizontal=True, key="doc_seguro_assigned")
+                    seguro_val = st.radio("Seguro vehicular", options=["SI", "NO"], horizontal=True, key=f"doc_seguro_assigned_{form_ver}")
                 with col_seg2:
                     default_seg_date = seg_date_obj or date.today()
-                    seguro_venc_val = st.date_input("Vencimiento Seguro", value=default_seg_date, key="doc_seguro_venc_assigned")
+                    seguro_venc_val = st.date_input("Vencimiento Seguro", value=default_seg_date, key=f"doc_seguro_venc_assigned_{form_ver}")
 
         # CASO B: Sin vehículo asignado o en modo Cargar / Inspeccionar otro vehículo
         else:
@@ -443,91 +442,76 @@ def render_checklist_view(user: dict):
             selected_veh_opt = st.selectbox(
                 "Vehículo Asignado / Flota",
                 options=veh_options,
-                key="sb_vehiculo_custom",
+                key=f"sb_vehiculo_{form_ver}",
                 help="Podés seleccionar una unidad de la flota o cargar los datos de una unidad nueva."
             )
 
-            # Sincronización instantánea de los campos de texto al seleccionar del dropdown
-            if selected_veh_opt != st.session_state.get("_last_synced_veh_opt"):
-                st.session_state["_last_synced_veh_opt"] = selected_veh_opt
+            # Sincronización de los campos de texto al seleccionar del dropdown
+            matched_v = None
+            if selected_veh_opt != "(Cargar datos manualmente)":
                 matched_v = veh_map.get(selected_veh_opt)
-                if not matched_v and selected_veh_opt != "(Cargar datos manualmente)":
+                if not matched_v:
                     for v in vehicles:
                         if v["patente"] in selected_veh_opt or v["interno"] in selected_veh_opt:
                             matched_v = v
                             break
 
-                if matched_v:
-                    st.session_state["v_interno_cust"] = str(matched_v.get("interno", "")).strip()
-                    st.session_state["v_patente_cust"] = str(matched_v.get("patente", "")).strip()
-                    st.session_state["v_marca_cust"] = str(matched_v.get("marca", "")).strip()
-                    st.session_state["v_modelo_cust"] = str(matched_v.get("modelo", "") or "").strip()
-                    st.session_state["v_km_cust"] = int(matched_v.get("km_actual") or 0)
-                    if matched_v.get("vtv_vencimiento"):
-                        try:
-                            st.session_state["doc_vtv_venc_cust"] = datetime.strptime(matched_v["vtv_vencimiento"], "%Y-%m-%d").date()
-                        except Exception:
-                            pass
-                    if matched_v.get("seguro_vencimiento"):
-                        try:
-                            st.session_state["doc_seguro_venc_cust"] = datetime.strptime(matched_v["seguro_vencimiento"], "%Y-%m-%d").date()
-                        except Exception:
-                            pass
-                elif selected_veh_opt == "(Cargar datos manualmente)":
-                    st.session_state["v_interno_cust"] = ""
-                    st.session_state["v_patente_cust"] = ""
-                    st.session_state["v_marca_cust"] = ""
-                    st.session_state["v_modelo_cust"] = ""
-                    st.session_state["v_km_cust"] = 0
-                st.rerun()
+            def_interno = str(matched_v.get("interno", "")).strip() if matched_v else ""
+            def_patente = str(matched_v.get("patente", "")).strip() if matched_v else ""
+            def_marca = str(matched_v.get("marca", "")).strip() if matched_v else ""
+            def_modelo = str(matched_v.get("modelo", "") or "").strip() if matched_v else ""
+            def_km = int(matched_v.get("km_actual") or 0) if matched_v else 0
+            
+            def_vtv_date = date.today()
+            if matched_v and matched_v.get("vtv_vencimiento"):
+                try:
+                    def_vtv_date = datetime.strptime(matched_v["vtv_vencimiento"], "%Y-%m-%d").date()
+                except Exception:
+                    pass
 
-            # Asegurar claves en session_state
-            if "v_interno_cust" not in st.session_state:
-                st.session_state["v_interno_cust"] = ""
-                st.session_state["v_patente_cust"] = ""
-                st.session_state["v_marca_cust"] = ""
-                st.session_state["v_modelo_cust"] = ""
-                st.session_state["v_km_cust"] = 0
-                st.session_state["doc_vtv_venc_cust"] = date.today()
-                st.session_state["doc_seguro_venc_cust"] = date.today()
-
-            sel_v_data = veh_map.get(selected_veh_opt)
+            def_seg_date = date.today()
+            if matched_v and matched_v.get("seguro_vencimiento"):
+                try:
+                    def_seg_date = datetime.strptime(matched_v["seguro_vencimiento"], "%Y-%m-%d").date()
+                except Exception:
+                    pass
 
             c_v1, c_v2, c_v3 = st.columns(3)
             with c_v1:
-                interno_val = st.text_input("N° Interno *", key="v_interno_cust", placeholder="Ej: INT-104")
-                marca_val = st.text_input("Marca *", key="v_marca_cust", placeholder="Ej: Toyota")
+                interno_val = st.text_input("N° Interno *", value=def_interno, key=f"v_int_{form_ver}", placeholder="Ej: INT-104")
+                marca_val = st.text_input("Marca *", value=def_marca, key=f"v_mar_{form_ver}", placeholder="Ej: Toyota")
             with c_v2:
-                patente_val = st.text_input("Patente *", key="v_patente_cust", placeholder="Ej: AE 452 CD")
-                modelo_val = st.text_input("Modelo", key="v_modelo_cust", placeholder="Ej: Hilux 4x4 D/C")
+                patente_val = st.text_input("Patente *", value=def_patente, key=f"v_pat_{form_ver}", placeholder="Ej: AE 452 CD")
+                modelo_val = st.text_input("Modelo", value=def_modelo, key=f"v_mod_{form_ver}", placeholder="Ej: Hilux 4x4 D/C")
             with c_v3:
-                km_val = st.number_input("Kilometraje Actual *", key="v_km_cust", min_value=0, step=100)
+                km_val = st.number_input("Kilometraje Actual *", value=def_km, key=f"v_km_{form_ver}", min_value=0, step=100)
 
             st.markdown("#### 📄 Documentación del Vehículo")
             col_d1, col_d2 = st.columns(2)
             with col_d1:
-                tarjeta_verde_val = st.radio("Tarjeta Verde", options=["SI", "NO"], horizontal=True, key="doc_tarjeta_cust")
-                manual_val = st.radio("Manual del Vehículo", options=["SI", "NO"], horizontal=True, key="doc_manual_cust")
+                tarjeta_verde_val = st.radio("Tarjeta Verde", options=["SI", "NO"], horizontal=True, key=f"doc_tarjeta_{form_ver}")
+                manual_val = st.radio("Manual del Vehículo", options=["SI", "NO"], horizontal=True, key=f"doc_manual_{form_ver}")
             with col_d2:
                 col_vtv1, col_vtv2 = st.columns([1, 2])
                 with col_vtv1:
-                    vtv_val = st.radio("VTV / RTO", options=["SI", "NO"], horizontal=True, key="doc_vtv_cust")
+                    vtv_val = st.radio("VTV / RTO", options=["SI", "NO"], horizontal=True, key=f"doc_vtv_{form_ver}")
                 with col_vtv2:
-                    vtv_venc_val = st.date_input("Vencimiento VTV", key="doc_vtv_venc_cust")
+                    vtv_venc_val = st.date_input("Vencimiento VTV", value=def_vtv_date, key=f"doc_vtv_venc_{form_ver}")
 
                 col_seg1, col_seg2 = st.columns([1, 2])
                 with col_seg1:
-                    seguro_val = st.radio("Seguro vehicular", options=["SI", "NO"], horizontal=True, key="doc_seguro_cust")
+                    seguro_val = st.radio("Seguro vehicular", options=["SI", "NO"], horizontal=True, key=f"doc_seguro_{form_ver}")
                 with col_seg2:
-                    seguro_venc_val = st.date_input("Vencimiento Seguro", key="doc_seguro_venc_cust")
+                    seguro_venc_val = st.date_input("Vencimiento Seguro", value=def_seg_date, key=f"doc_seguro_venc_{form_ver}")
 
             # Checkbox de asignación predeterminada
             set_as_default = st.checkbox(
                 "📌 Guardar y recordar este vehículo como predeterminado para mi usuario",
                 value=True if not assigned_v else False,
+                key=f"chk_default_veh_{form_ver}",
                 help="Si lo marcás, la próxima vez que ingreses con tu usuario se precargará este vehículo automáticamente."
             )
-            sel_v_id = sel_v_data["id"] if sel_v_data else None
+            sel_v_id = matched_v["id"] if matched_v else None
 
     # 2. CHECKLIST INTERACTIVO (Sin valor por defecto para exigir llenado a conciencia)
     st.markdown("---")
@@ -537,11 +521,11 @@ def render_checklist_view(user: dict):
         st.markdown("### ✅ Checklist de Inspección")
     with col_head2:
         # Botón directo para autocompletar todo en Cumple
-        if st.button("🪄 Marcar todo 'C'", key="btn_cheat_mark_all_c", help="Atajo para marcar todas las opciones en C (Cumple)", use_container_width=True):
+        if st.button("🪄 Marcar todo 'C'", key=f"btn_cheat_mark_all_c_{form_ver}", help="Atajo para marcar todas las opciones en C (Cumple)", use_container_width=True):
             for side in ["LEFT", "RIGHT"]:
                 for sec in SECTIONS_STRUCTURE[side]:
                     for item in sec["items"]:
-                        st.session_state[f"chk_{sec['title']}_{item}"] = "🟢 C"
+                        st.session_state[f"chk_{form_ver}_{sec['title']}_{item}"] = "🟢 C"
             st.toast("✨ ¡Todos los 34 ítems han sido marcados como 'C (Cumple)'!", icon="✅")
             st.rerun()
 
@@ -576,7 +560,7 @@ def render_checklist_view(user: dict):
     for sec in all_sections:
         with st.expander(f"📌 {sec['title']}", expanded=True):
             for item in sec["items"]:
-                key = f"chk_{sec['title']}_{item}"
+                key = f"chk_{form_ver}_{sec['title']}_{item}"
 
                 # Normalizar y resolver valor inicial de session_state si existía
                 curr_val = st.session_state.get(key, None)
@@ -628,13 +612,13 @@ def render_checklist_view(user: dict):
                         obs_falla = st.text_input(
                             f"Detalle de la falla en '{item}'",
                             placeholder="Ej: Foco quemado, golpe en paragolpe, etc.",
-                            key=f"obs_falla_{sec['title']}_{item}"
+                            key=f"obs_falla_{form_ver}_{sec['title']}_{item}"
                         )
                     with c_ph2:
                         photo_file = st.file_uploader(
                             f"📸 Adjuntar foto de '{item}'",
                             type=["jpg", "jpeg", "png"],
-                            key=f"photo_{sec['title']}_{item}",
+                            key=f"photo_{form_ver}_{sec['title']}_{item}",
                             help="Podés tomar una foto con la cámara del celular o subir un archivo."
                         )
                         if photo_file:
@@ -714,7 +698,7 @@ def render_checklist_view(user: dict):
         "Detalles o comentarios adicionales de la inspección",
         placeholder="Ingrese cualquier observación o comentario sobre el estado del vehículo...",
         height=100,
-        key="insp_observaciones"
+        key=f"insp_observaciones_{form_ver}"
     )
 
     # 4. FIRMAS
@@ -732,7 +716,7 @@ def render_checklist_view(user: dict):
             sig_options.insert(0, "⭐ Usar mi firma guardada en mi perfil")
         sig_options.append("✏️ Dibujar firma táctil / mouse")
         
-        selected_sig_mode = st.radio("Método de firma para este reporte:", options=sig_options)
+        selected_sig_mode = st.radio("Método de firma para este reporte:", options=sig_options, key=f"sig_mode_{form_ver}")
 
     final_realizo_sig_b64 = ""
 
@@ -749,11 +733,11 @@ def render_checklist_view(user: dict):
             final_realizo_sig_b64 = cert_sig_b64
             
         elif "Subir" in selected_sig_mode:
-            sig_upload = st.file_uploader("Subir imagen de firma (PNG o JPG con fondo blanco/transparente)", type=["png", "jpg", "jpeg"], key="upload_sig")
+            sig_upload = st.file_uploader("Subir imagen de firma (PNG o JPG con fondo blanco/transparente)", type=["png", "jpg", "jpeg"], key=f"upload_sig_{form_ver}")
             if sig_upload:
                 final_realizo_sig_b64 = base64.b64encode(sig_upload.getvalue()).decode("utf-8")
                 st.image(sig_upload, width=180, caption="Firma cargada")
-                if st.checkbox("Guardar esta firma en mi perfil para futuras inspecciones"):
+                if st.checkbox("Guardar esta firma en mi perfil para futuras inspecciones", key=f"save_sig_chk_{form_ver}"):
                     db.update_user(user["id"], {"signature_png": final_realizo_sig_b64})
                     user["signature_png"] = final_realizo_sig_b64
                     st.success("¡Firma guardada en tu perfil con éxito!")
@@ -772,7 +756,7 @@ def render_checklist_view(user: dict):
                     height=130,
                     width=300,
                     drawing_mode="freedraw",
-                    key="canvas_firma",
+                    key=f"canvas_firma_{form_ver}",
                     update_streamlit=True
                 )
                 if canvas_result is not None:
@@ -802,13 +786,14 @@ def render_checklist_view(user: dict):
         with c_un1:
             st.warning(f"⚠️ Quedan **{unanswered_total} de 34 ítems sin responder** en la planilla de inspección.")
         with c_un2:
-            if st.button("🪄 Marcar pendientes en 'C'", key="btn_fill_pending_c", help="Completa automáticamente las preguntas vacías con C (Cumple)", use_container_width=True):
+            if st.button("🪄 Marcar pendientes en 'C'", key=f"btn_fill_pending_c_{form_ver}", help="Completa automáticamente las preguntas vacías con C (Cumple)", use_container_width=True):
                 for side in ["LEFT", "RIGHT"]:
                     for sec in SECTIONS_STRUCTURE[side]:
                         for item in sec["items"]:
-                            k_it = f"chk_{sec['title']}_{item}"
+                            k_it = f"chk_{form_ver}_{sec['title']}_{item}"
                             if not st.session_state.get(k_it):
                                 st.session_state[k_it] = OPTION_C
+                st.toast("✨ ¡Ítems pendientes completados con 'C'!", icon="✅")
                 st.rerun()
     elif nc_total > 0:
         st.warning(f"⚠️ Se detectaron **{nc_total} No Conformidades (NC)** en esta inspección. El reporte quedará catalogado como 'Observado' y será notificado al equipo de CASS.")
@@ -820,7 +805,7 @@ def render_checklist_view(user: dict):
     if veh_invalido:
         st.info("ℹ️ Recuerde seleccionar o ingresar los datos del vehículo (N° Interno, Patente y Marca) en la sección superior.")
 
-    if st.button("🚀 Guardar Reporte y Generar PDF", type="primary", use_container_width=True):
+    if st.button("🚀 Guardar Reporte y Generar PDF Oficial", key=f"btn_submit_insp_{form_ver}", type="primary", use_container_width=True):
         # Validación 1: Datos de vehículo
         if veh_invalido:
             st.error("⚠️ Complete los datos obligatorios del vehículo (Interno, Patente y Marca) antes de continuar.")
@@ -914,20 +899,16 @@ def render_checklist_view(user: dict):
             email_sent = False
             email_recipients_str = ""
             try:
-                # a) Todos los usuarios con perfil CASS (gestor_cass)
                 cass_users = [u for u in db.get_all_users() if u.get("role") == "gestor_cass"]
                 recipients = [u["email"] for u in cass_users if u.get("email")]
                 
-                # b) Correo del usuario que realizó / cargó la checklist
                 user_email = user.get("email")
                 if user_email:
                     recipients.append(user_email)
                 
-                # c) Correos adicionales registrados por el Administrador
                 extra_emails = db.get_extra_recipients()
                 recipients.extend(extra_emails)
 
-                # d) Limpiar duplicados y vacíos
                 recipients = [r.strip().lower() for r in recipients if r and "@" in r]
                 recipients = list(dict.fromkeys(recipients))
 
@@ -938,11 +919,10 @@ def render_checklist_view(user: dict):
             except Exception as mail_err:
                 print(f"Aviso envío email: {mail_err}")
 
-            # 6. Limpiar campos del formulario en session_state para reiniciar en blanco
-            keys_to_clear = [k for k in list(st.session_state.keys()) if k.startswith("chk_") or k.startswith("obs_falla_") or k.startswith("photo_") or k.startswith("doc_") or k in ["v_km_assigned", "v_km_cust", "v_interno_cust", "v_patente_cust", "v_marca_cust", "v_modelo_cust", "insp_observaciones", "canvas_firma", "upload_sig", "sb_vehiculo_custom", "_last_synced_veh_opt"]]
-            for k in keys_to_clear:
-                if k in st.session_state:
-                    del st.session_state[k]
+            # 6. Incrementar versión del formulario para iniciar en blanco total en la próxima carga
+            st.session_state["chk_form_ver"] = form_ver + 1
+            st.session_state.pop("mode_cargar_otro_vehiculo", None)
+            st.session_state.pop("_last_synced_veh_opt", None)
 
             # 7. Guardar en session_state para confirmación y descarga exclusiva
             st.session_state["last_submission"] = {

@@ -11,39 +11,41 @@ from database.connection import get_db
 def get_effective_smtp_config() -> Dict[str, Any]:
     """
     Obtiene la configuración SMTP activa priorizando:
-    1. Base de datos (configurada por Administrador en el panel).
-    2. Streamlit Secrets (.streamlit/secrets.toml).
+    1. Streamlit Secrets (.streamlit/secrets.toml) si está configurado con credenciales válidas.
+    2. Base de datos Supabase / sullair_settings (guardado desde el Panel de Administrador).
     3. Variables de entorno.
     """
-    db = get_db()
-    db_config = db.get_smtp_config()
-    if db_config and db_config.get("smtp_server") and db_config.get("smtp_user"):
-        return db_config
-
-    # Fallback a st.secrets
+    # 1. Intentar st.secrets
     try:
         if hasattr(st, "secrets") and "email" in st.secrets:
             sec = st.secrets["email"]
-            return {
-                "smtp_server": sec.get("smtp_server", ""),
-                "smtp_port": int(sec.get("smtp_port", 587)),
-                "smtp_user": sec.get("smtp_user", ""),
-                "smtp_password": sec.get("smtp_password", ""),
-                "smtp_from": sec.get("smtp_from", sec.get("smtp_user", "")),
-                "sender_name": sec.get("sender_name", "Sullair Flota"),
-                "use_tls": sec.get("use_tls", True)
-            }
+            if sec.get("smtp_server") and sec.get("smtp_user") and sec.get("smtp_password"):
+                return {
+                    "smtp_server": str(sec.get("smtp_server", "")).strip(),
+                    "smtp_port": int(sec.get("smtp_port", 587)),
+                    "smtp_user": str(sec.get("smtp_user", "")).strip(),
+                    "smtp_password": str(sec.get("smtp_password", "")),
+                    "smtp_from": str(sec.get("smtp_from", sec.get("smtp_user", ""))).strip(),
+                    "sender_name": str(sec.get("sender_name", "Sullair Argentina - Flota")).strip(),
+                    "use_tls": sec.get("use_tls", True)
+                }
     except Exception:
         pass
 
-    # Fallback a variables de entorno
+    # 2. Base de datos
+    db = get_db()
+    db_config = db.get_smtp_config()
+    if db_config and db_config.get("smtp_server") and db_config.get("smtp_user") and db_config.get("smtp_password"):
+        return db_config
+
+    # 3. Variables de entorno
     return {
-        "smtp_server": os.environ.get("SMTP_SERVER", ""),
+        "smtp_server": os.environ.get("SMTP_SERVER", "").strip(),
         "smtp_port": int(os.environ.get("SMTP_PORT", 587)),
-        "smtp_user": os.environ.get("SMTP_USER", ""),
+        "smtp_user": os.environ.get("SMTP_USER", "").strip(),
         "smtp_password": os.environ.get("SMTP_PASSWORD", ""),
-        "smtp_from": os.environ.get("SMTP_FROM", os.environ.get("SMTP_USER", "")),
-        "sender_name": os.environ.get("SMTP_SENDER_NAME", "Sullair Flota"),
+        "smtp_from": os.environ.get("SMTP_FROM", os.environ.get("SMTP_USER", "")).strip(),
+        "sender_name": os.environ.get("SMTP_SENDER_NAME", "Sullair Argentina - Flota").strip(),
         "use_tls": True
     }
 
@@ -111,7 +113,8 @@ def send_inspection_email(
     """
     Envía un correo electrónico automático a los perfiles CASS, inspector y correos adicionales
     con el resumen de la inspección y el reporte PDF oficial FSSA 106 adjunto.
-    El remitente visible y la dirección From corresponden al usuario que realizó la inspección.
+    El remitente visible muestra al inspector y el Reply-To dirige a su casilla, mientras el
+    From técnico respeta la autenticación del servidor SMTP para evitar rechazos de seguridad.
     """
     cfg = get_effective_smtp_config()
     smtp_server = cfg.get("smtp_server")
@@ -133,12 +136,13 @@ def send_inspection_email(
         return False
 
     # Datos del remitente: quien generó la inspección
-    inspector_name = inspection_data.get("realizo_nombre") or inspection_data.get("user_name") or cfg.get("sender_name") or "Sullair Flota"
-    inspector_email = inspection_data.get("user_email") or smtp_from or smtp_user
+    inspector_name = inspection_data.get("realizo_nombre") or inspection_data.get("user_name") or "Inspector Sullair"
+    inspector_email = inspection_data.get("user_email") or smtp_from
 
     try:
         msg = MIMEMultipart()
-        msg["From"] = f"{inspector_name} <{inspector_email}>"
+        # Nombre visible del Inspector + Casilla autenticada en From para compatibilidad total con Office 365
+        msg["From"] = f"{inspector_name} <{smtp_from}>"
         msg["Reply-To"] = f"{inspector_name} <{inspector_email}>"
         msg["To"] = ", ".join(clean_recipients)
         
