@@ -388,13 +388,11 @@ def render_admin_view(current_user: dict):
         with st.form("form_smtp_config"):
             c_s1, c_s2 = st.columns(2)
             with c_s1:
-                smtp_serv = st.text_input("Servidor SMTP *", value=curr_smtp.get("smtp_server", ""), placeholder="Ej: smtp.office365.com / smtp.gmail.com")
+                smtp_serv = st.text_input("Servidor SMTP *", value=curr_smtp.get("smtp_server", ""), placeholder="Ej: smtp.office365.com / smtp-mail.outlook.com")
                 smtp_port = st.number_input("Puerto SMTP *", value=int(curr_smtp.get("smtp_port") or 587), min_value=1, max_value=65535, step=1)
-                smtp_name = st.text_input("Nombre Visible del Remitente", value=curr_smtp.get("sender_name", "Sullair Flota - FSSA 106"))
             with c_s2:
-                smtp_user = st.text_input("Casilla / Usuario SMTP *", value=curr_smtp.get("smtp_user", ""), placeholder="notificaciones@sullair.com.ar")
+                smtp_user = st.text_input("Casilla / Usuario SMTP *", value=curr_smtp.get("smtp_user", ""), placeholder="Ej: test@sullair.com.ar / fcendra@sullair.com.ar")
                 smtp_pass = st.text_input("Contraseña de Aplicación / SMTP *", value=curr_smtp.get("smtp_password", ""), type="password", placeholder="••••••••••••")
-                smtp_from = st.text_input("Dirección 'From' (Remitente)", value=curr_smtp.get("smtp_from", ""), placeholder="Dejar vacío para usar el mismo usuario")
 
             smtp_tls = st.checkbox("Habilitar STARTTLS / Seguridad", value=curr_smtp.get("use_tls", True))
 
@@ -408,11 +406,9 @@ def render_admin_view(current_user: dict):
                         "smtp_port": int(smtp_port),
                         "smtp_user": smtp_user.strip(),
                         "smtp_password": smtp_pass.strip(),
-                        "smtp_from": smtp_from.strip() if smtp_from else smtp_user.strip(),
-                        "sender_name": smtp_name.strip(),
                         "use_tls": smtp_tls
                     })
-                    st.success("¡Configuración de casilla SMTP guardada exitosamente en la base de datos!")
+                    st.success("¡Configuración de casilla SMTP guardada exitosamente en la base de datos Supabase!")
                     st.rerun()
 
         # Prueba de conexión SMTP

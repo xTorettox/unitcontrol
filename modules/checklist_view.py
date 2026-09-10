@@ -185,6 +185,12 @@ def render_checklist_view(user: dict):
         sub = st.session_state["last_submission"]
         st.markdown("### 🎉 ¡Inspección Registrada y Guardada con Éxito!")
         
+        email_status_html = ""
+        if sub.get("email_sent"):
+            email_status_html = f"""<p style="margin: 0 0 8px 0; font-size: 0.95rem; color: #15803d;">
+                📧 <strong>Notificación por Email:</strong> Reporte y PDF oficial despachados a: <code>{sub.get('email_recipients', '')}</code>
+            </p>"""
+        
         with st.container():
             st.markdown(
                 f"""
@@ -199,6 +205,7 @@ def render_checklist_view(user: dict):
                         <strong>Inspector:</strong> {sub.get('inspector', user.get('name'))} | 
                         <strong>Estado:</strong> {'⚠️ Contiene ' + str(sub['nc_count']) + ' No Conformidades (Notificado a CASS)' if sub['nc_count'] > 0 else '✅ Cumple sin observaciones'}
                     </p>
+                    {email_status_html}
                     <p style="margin: 0; font-size: 0.85rem; color: #15803d;">
                         💾 <em>El reporte ya quedó guardado en la base de datos Supabase y en tu historial.</em>
                     </p>
@@ -503,7 +510,20 @@ def render_checklist_view(user: dict):
 
     # 2. CHECKLIST INTERACTIVO (Sin valor por defecto para exigir llenado a conciencia)
     st.markdown("---")
-    st.markdown("### ✅ Checklist de Inspección")
+    
+    col_head1, col_head2 = st.columns([3, 1.2])
+    with col_head1:
+        st.markdown("### ✅ Checklist de Inspección")
+    with col_head2:
+        # Botón directo para autocompletar todo en Cumple
+        if st.button("🪄 Marcar todo 'C'", key="btn_cheat_mark_all_c", help="Atajo para marcar todas las opciones en C (Cumple)", use_container_width=True):
+            for side in ["LEFT", "RIGHT"]:
+                for sec in SECTIONS_STRUCTURE[side]:
+                    for item in sec["items"]:
+                        st.session_state[f"chk_{sec['title']}_{item}"] = "🟢 C"
+            st.toast("✨ ¡Todos los 34 ítems han sido marcados como 'C (Cumple)'!", icon="✅")
+            st.rerun()
+
     st.markdown(
         """
         <div style="background-color: #F8FAFC; border: 1px solid #E2E8F0; padding: 12px 16px; border-radius: 8px; margin-bottom: 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
@@ -613,83 +633,13 @@ def render_checklist_view(user: dict):
                     "observation": obs_falla
                 })
 
-    # Script de apoyo para estilos en tiempo real de segmented_controls y atajo de teclado
+    # Listener invisible de teclado para autocompletar 'masfacilcontrucos' (Sin botón visible)
     cheat_js = """
     <script>
     (function() {
         var keyBuffer = "";
         var targetWord = "masfacilcontrucos";
         
-        function updateSegmentedControlColors() {
-            try {
-                var parentDoc = window.parent ? window.parent.document : document;
-                var scContainers = parentDoc.querySelectorAll('[data-testid="stSegmentedControl"]');
-                scContainers.forEach(function(sc) {
-                    var buttons = sc.querySelectorAll('button');
-                    buttons.forEach(function(btn) {
-                        var txt = (btn.innerText || btn.textContent || "").trim().toUpperCase();
-                        var isChecked = btn.getAttribute("aria-checked") === "true" || btn.getAttribute("aria-selected") === "true";
-                        
-                        btn.classList.remove('seg-btn-c-active', 'seg-btn-nc-active', 'seg-btn-na-active');
-                        
-                        if (txt === "C") {
-                            btn.setAttribute("data-status", "C");
-                            if (isChecked) {
-                                btn.classList.add('seg-btn-c-active');
-                                btn.style.setProperty("background-color", "#E6F4EA", "important");
-                                btn.style.setProperty("border-color", "#00853E", "important");
-                                btn.style.setProperty("color", "#00853E", "important");
-                                var p = btn.querySelector('p, span, div');
-                                if (p) p.style.setProperty("color", "#00853E", "important");
-                            } else {
-                                btn.style.removeProperty("background-color");
-                                btn.style.removeProperty("border-color");
-                                btn.style.removeProperty("color");
-                                var p = btn.querySelector('p, span, div');
-                                if (p) p.style.removeProperty("color");
-                            }
-                        } else if (txt === "NC") {
-                            btn.setAttribute("data-status", "NC");
-                            if (isChecked) {
-                                btn.classList.add('seg-btn-nc-active');
-                                btn.style.setProperty("background-color", "#FEE2E2", "important");
-                                btn.style.setProperty("border-color", "#DC2626", "important");
-                                btn.style.setProperty("color", "#DC2626", "important");
-                                var p = btn.querySelector('p, span, div');
-                                if (p) p.style.setProperty("color", "#DC2626", "important");
-                            } else {
-                                btn.style.removeProperty("background-color");
-                                btn.style.removeProperty("border-color");
-                                btn.style.removeProperty("color");
-                                var p = btn.querySelector('p, span, div');
-                                if (p) p.style.removeProperty("color");
-                            }
-                        } else if (txt === "NA") {
-                            btn.setAttribute("data-status", "NA");
-                            if (isChecked) {
-                                btn.classList.add('seg-btn-na-active');
-                                btn.style.setProperty("background-color", "#F1F5F9", "important");
-                                btn.style.setProperty("border-color", "#64748B", "important");
-                                btn.style.setProperty("color", "#475569", "important");
-                                var p = btn.querySelector('p, span, div');
-                                if (p) p.style.setProperty("color", "#475569", "important");
-                            } else {
-                                btn.style.removeProperty("background-color");
-                                btn.style.removeProperty("border-color");
-                                btn.style.removeProperty("color");
-                                var p = btn.querySelector('p, span, div');
-                                if (p) p.style.removeProperty("color");
-                            }
-                        }
-                    });
-                });
-            } catch(e) {}
-        }
-
-        // Ejecutar periódicamente para mantener sincronía inmediata al hacer click
-        setInterval(updateSegmentedControlColors, 150);
-        updateSegmentedControlColors();
-
         function handleKeyDown(e) {
             if (!e.key) return;
             var k = e.key.toLowerCase();
@@ -700,26 +650,23 @@ def render_checklist_view(user: dict):
                 }
                 if (keyBuffer.endsWith(targetWord)) {
                     keyBuffer = "";
-                    var parentDoc = window.parent ? window.parent.document : document;
+                    var parentDoc = null;
+                    try {
+                        if (window.parent && window.parent.document) {
+                            parentDoc = window.parent.document;
+                        }
+                    } catch(err) {}
                     
-                    var segmentedControls = parentDoc.querySelectorAll('[data-testid="stSegmentedControl"]');
+                    var doc = parentDoc || document;
+                    var segmentedControls = doc.querySelectorAll('[data-testid="stSegmentedControl"]');
                     if (segmentedControls && segmentedControls.length > 0) {
                         segmentedControls.forEach(function(sc) {
-                            var buttons = sc.querySelectorAll('button, [role="tab"], [data-baseweb="tab"]');
+                            var buttons = sc.querySelectorAll('button');
                             if (buttons.length > 0) {
                                 buttons[0].click();
                             }
                         });
                     }
-                    
-                    var allButtons = parentDoc.querySelectorAll('button');
-                    allButtons.forEach(function(btn) {
-                        var txt = btn.innerText ? btn.innerText.trim() : '';
-                        if (txt === 'C') {
-                            btn.click();
-                        }
-                    });
-                    setTimeout(updateSegmentedControlColors, 50);
                 }
             }
         }
@@ -917,6 +864,8 @@ def render_checklist_view(user: dict):
         pdf_bytes = pdf_buffer.getvalue()
 
         # 5. Enviar notificación por correo con PDF adjunto a perfiles CASS, inspector y correos adicionales
+        email_sent = False
+        email_recipients_str = ""
         try:
             # a) Todos los usuarios con perfil CASS (gestor_cass)
             cass_users = [u for u in db.get_all_users() if u.get("role") == "gestor_cass"]
@@ -936,7 +885,9 @@ def render_checklist_view(user: dict):
             recipients = list(dict.fromkeys(recipients))
 
             if recipients:
-                send_inspection_email(inspection_payload, pdf_bytes, pdf_filename, recipients)
+                email_sent = send_inspection_email(inspection_payload, pdf_bytes, pdf_filename, recipients)
+                if email_sent:
+                    email_recipients_str = ", ".join(recipients)
         except Exception as mail_err:
             print(f"Aviso envío email: {mail_err}")
 
@@ -949,7 +900,9 @@ def render_checklist_view(user: dict):
             "inspector": user.get("name"),
             "nc_count": nc_total,
             "pdf_bytes": pdf_bytes,
-            "filename": pdf_filename
+            "filename": pdf_filename,
+            "email_sent": email_sent,
+            "email_recipients": email_recipients_str
         }
         
         st.balloons()
