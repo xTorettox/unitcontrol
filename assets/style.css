@@ -202,12 +202,13 @@ html body div[data-testid="stSegmentedControl"] button,
 html body div[data-testid="stSegmentedControl"] [role="radiogroup"] button,
 html body div[data-testid="stSegmentedControl"] [data-baseweb="button-group"] button {
     font-weight: 700 !important;
-    border-radius: 6px !important;
+    font-size: 0.95rem !important;
+    border-radius: 8px !important;
     border: 1px solid #CBD5E1 !important;
-    padding: 4px 12px !important;
-    min-width: 44px !important;
+    padding: 5px 14px !important;
+    min-width: 56px !important;
     background-color: #FFFFFF !important;
-    color: #64748B !important;
+    color: #334155 !important;
     box-shadow: none !important;
     transition: all 0.15s ease !important;
 }
@@ -215,7 +216,8 @@ html body div[data-testid="stSegmentedControl"] [data-baseweb="button-group"] bu
 /* Estado Inactivo - Hover */
 html body div[data-testid="stSegmentedControl"] button:hover {
     border-color: #94A3B8 !important;
-    color: #1E293B !important;
+    background-color: #F8FAFC !important;
+    color: #0F172A !important;
 }
 
 /* 1. OPCIÓN 'C' (CUMPLE - 1ER BOTÓN ACTIVO) -> VERDE */
@@ -232,13 +234,6 @@ html body div[data-testid="stSegmentedControl"] > div > div:nth-child(1) button[
     color: #00853E !important;
     box-shadow: none !important;
 }
-html body div[data-testid="stSegmentedControl"] [role="radiogroup"] > button:nth-child(1)[aria-checked="true"] *,
-html body div[data-testid="stSegmentedControl"] [role="radiogroup"] > button:first-child[aria-checked="true"] *,
-html body div[data-testid="stSegmentedControl"] button:nth-of-type(1)[aria-checked="true"] *,
-html body div[data-testid="stSegmentedControl"] button:first-child[aria-checked="true"] *,
-html body div[data-testid="stSegmentedControl"] > div > div:nth-child(1) button[aria-checked="true"] * {
-    color: #00853E !important;
-}
 
 /* 2. OPCIÓN 'NC' (NO CUMPLE - 2DO BOTÓN ACTIVO) -> ROJO */
 html body div[data-testid="stSegmentedControl"] [role="radiogroup"] > button:nth-child(2)[aria-checked="true"],
@@ -251,11 +246,6 @@ html body div[data-testid="stSegmentedControl"] > div > div:nth-child(2) button[
     border-color: #DC2626 !important;
     color: #DC2626 !important;
     box-shadow: none !important;
-}
-html body div[data-testid="stSegmentedControl"] [role="radiogroup"] > button:nth-child(2)[aria-checked="true"] *,
-html body div[data-testid="stSegmentedControl"] button:nth-of-type(2)[aria-checked="true"] *,
-html body div[data-testid="stSegmentedControl"] > div > div:nth-child(2) button[aria-checked="true"] * {
-    color: #DC2626 !important;
 }
 
 /* 3. OPCIÓN 'NA' (NO APLICA - 3ER BOTÓN ACTIVO) -> GRIS */
@@ -271,11 +261,4 @@ html body div[data-testid="stSegmentedControl"] > div > div:nth-child(3) button[
     border-color: #64748B !important;
     color: #475569 !important;
     box-shadow: none !important;
-}
-html body div[data-testid="stSegmentedControl"] [role="radiogroup"] > button:nth-child(3)[aria-checked="true"] *,
-html body div[data-testid="stSegmentedControl"] [role="radiogroup"] > button:last-child[aria-checked="true"] *,
-html body div[data-testid="stSegmentedControl"] button:nth-of-type(3)[aria-checked="true"] *,
-html body div[data-testid="stSegmentedControl"] button:last-child[aria-checked="true"] *,
-html body div[data-testid="stSegmentedControl"] > div > div:nth-child(3) button[aria-checked="true"] * {
-    color: #475569 !important;
 }

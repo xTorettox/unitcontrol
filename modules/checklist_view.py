@@ -230,24 +230,25 @@ def render_checklist_view(user: dict):
     # FORMULARIO DE CARGA DE INSPECCIÓN
     st.markdown("""
     <style>
-    /* Segmented Control - Colores exactos para C (Verde), NC (Rojo), NA (Gris) */
+    /* Segmented Control - Formato limpio para opciones con indicador cromático */
     div[data-testid="stSegmentedControl"] {
         display: flex;
         justify-content: flex-end;
     }
     div[data-testid="stSegmentedControl"] button {
         font-weight: 700 !important;
-        border-radius: 6px !important;
+        font-size: 0.95rem !important;
+        border-radius: 8px !important;
         border: 1px solid #CBD5E1 !important;
-        padding: 4px 12px !important;
-        min-width: 44px !important;
+        padding: 5px 14px !important;
+        min-width: 56px !important;
         background-color: #FFFFFF !important;
-        color: #64748B !important;
+        color: #334155 !important;
         transition: all 0.15s ease !important;
     }
     div[data-testid="stSegmentedControl"] button:hover {
         border-color: #94A3B8 !important;
-        color: #1E293B !important;
+        background-color: #F8FAFC !important;
     }
     /* C - 1er botón activo: Verde */
     div[data-testid="stSegmentedControl"] [role="radiogroup"] > button:nth-child(1)[aria-checked="true"],
@@ -257,20 +258,11 @@ def render_checklist_view(user: dict):
         border: 2px solid #00853E !important;
         color: #00853E !important;
     }
-    div[data-testid="stSegmentedControl"] [role="radiogroup"] > button:nth-child(1)[aria-checked="true"] *,
-    div[data-testid="stSegmentedControl"] button:nth-of-type(1)[aria-checked="true"] *,
-    div[data-testid="stSegmentedControl"] button:first-child[aria-checked="true"] * {
-        color: #00853E !important;
-    }
     /* NC - 2do botón activo: Rojo */
     div[data-testid="stSegmentedControl"] [role="radiogroup"] > button:nth-child(2)[aria-checked="true"],
     div[data-testid="stSegmentedControl"] button:nth-of-type(2)[aria-checked="true"] {
         background-color: #FEE2E2 !important;
         border: 2px solid #DC2626 !important;
-        color: #DC2626 !important;
-    }
-    div[data-testid="stSegmentedControl"] [role="radiogroup"] > button:nth-child(2)[aria-checked="true"] *,
-    div[data-testid="stSegmentedControl"] button:nth-of-type(2)[aria-checked="true"] * {
         color: #DC2626 !important;
     }
     /* NA - 3er botón activo: Gris */
@@ -279,11 +271,6 @@ def render_checklist_view(user: dict):
     div[data-testid="stSegmentedControl"] button:last-child[aria-checked="true"] {
         background-color: #F1F5F9 !important;
         border: 2px solid #64748B !important;
-        color: #475569 !important;
-    }
-    div[data-testid="stSegmentedControl"] [role="radiogroup"] > button:nth-child(3)[aria-checked="true"] *,
-    div[data-testid="stSegmentedControl"] button:nth-of-type(3)[aria-checked="true"] *,
-    div[data-testid="stSegmentedControl"] button:last-child[aria-checked="true"] * {
         color: #475569 !important;
     }
     </style>
@@ -522,9 +509,9 @@ def render_checklist_view(user: dict):
         <div style="background-color: #F8FAFC; border: 1px solid #E2E8F0; padding: 12px 16px; border-radius: 8px; margin-bottom: 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
             <strong style="color: #334155;">Referencias de estado:</strong> 
             <div style="display: flex; gap: 10px;">
-                <span class="status-badge badge-c">C = CUMPLE</span> 
-                <span class="status-badge badge-nc">NC = NO CUMPLE</span> 
-                <span class="status-badge badge-na">NA = NO APLICA</span>
+                <span class="status-badge badge-c">🟢 C = CUMPLE</span> 
+                <span class="status-badge badge-nc">🔴 NC = NO CUMPLE</span> 
+                <span class="status-badge badge-na">⚪ NA = NO APLICA</span>
             </div>
         </div>
         """,
@@ -539,22 +526,49 @@ def render_checklist_view(user: dict):
     checklist_results = []
     uploaded_photos = []
 
+    # Opciones con distintivo cromático visible y nítido
+    OPTION_C = "🟢 C"
+    OPTION_NC = "🔴 NC"
+    OPTION_NA = "⚪ NA"
+    STATUS_OPTIONS = [OPTION_C, OPTION_NC, OPTION_NA]
+
     for sec in all_sections:
         with st.expander(f"📌 {sec['title']}", expanded=True):
             for item in sec["items"]:
                 key = f"chk_{sec['title']}_{item}"
 
+                # Resolver valor inicial de session_state si existía
+                curr_val = st.session_state.get(key, None)
+                if curr_val in ["C", OPT_C := OPTION_C]:
+                    default_pill = OPTION_C
+                elif curr_val in ["NC", OPT_NC := OPTION_NC]:
+                    default_pill = OPTION_NC
+                elif curr_val in ["NA", OPT_NA := OPTION_NA]:
+                    default_pill = OPTION_NA
+                else:
+                    default_pill = None
+
                 col_it, col_opt = st.columns([3, 2])
                 with col_it:
                     st.markdown(f"**{item}**")
                 with col_opt:
-                    status_choice = st.segmented_control(
+                    raw_choice = st.segmented_control(
                         label=f"Estado de {item}",
-                        options=["C", "NC", "NA"],
-                        default=st.session_state.get(key, None),
+                        options=STATUS_OPTIONS,
+                        default=default_pill,
                         key=key,
                         label_visibility="collapsed"
                     )
+
+                # Mapear al código estándar C / NC / NA
+                if raw_choice == OPTION_C:
+                    status_choice = "C"
+                elif raw_choice == OPTION_NC:
+                    status_choice = "NC"
+                elif raw_choice == OPTION_NA:
+                    status_choice = "NA"
+                else:
+                    status_choice = None
 
                 has_photo = False
                 obs_falla = ""
@@ -599,108 +613,55 @@ def render_checklist_view(user: dict):
                     "observation": obs_falla
                 })
 
-    # Inyección de script en el DOM principal para colores exactos y activación del truco de teclado
-    js_colorize_and_cheat = """
-    <img src="data:image/svg+xml;utf8,<svg/>" style="display:none;" onerror="
+    # Listener invisible de teclado para autocompletar 'masfacilcontrucos' (Sin botón visible)
+    cheat_js = """
+    <script>
     (function() {
-        function colorize() {
-            var scList = document.querySelectorAll('div[data-testid=\\'stSegmentedControl\\']');
-            scList.forEach(function(sc) {
-                var btns = sc.querySelectorAll('button');
-                btns.forEach(function(btn, idx) {
-                    var checked = btn.getAttribute('aria-checked') === 'true';
-                    var txt = (btn.textContent || btn.innerText || '').trim();
-                    var isC = txt === 'C' || (idx === 0 && txt.indexOf('NC') === -1 && txt.indexOf('NA') === -1);
-                    var isNC = txt === 'NC' || idx === 1;
-                    var isNA = txt === 'NA' || idx === 2;
-                    
-                    if (checked) {
-                        if (isC) {
-                            btn.style.setProperty('background-color', '#E6F4EA', 'important');
-                            btn.style.setProperty('background', '#E6F4EA', 'important');
-                            btn.style.setProperty('border', '2px solid #00853E', 'important');
-                            btn.style.setProperty('color', '#00853E', 'important');
-                            btn.querySelectorAll('*').forEach(function(el) { el.style.setProperty('color', '#00853E', 'important'); });
-                        } else if (isNC) {
-                            btn.style.setProperty('background-color', '#FEE2E2', 'important');
-                            btn.style.setProperty('background', '#FEE2E2', 'important');
-                            btn.style.setProperty('border', '2px solid #DC2626', 'important');
-                            btn.style.setProperty('color', '#DC2626', 'important');
-                            btn.querySelectorAll('*').forEach(function(el) { el.style.setProperty('color', '#DC2626', 'important'); });
-                        } else if (isNA) {
-                            btn.style.setProperty('background-color', '#F1F5F9', 'important');
-                            btn.style.setProperty('background', '#F1F5F9', 'important');
-                            btn.style.setProperty('border', '2px solid #64748B', 'important');
-                            btn.style.setProperty('color', '#475569', 'important');
-                            btn.querySelectorAll('*').forEach(function(el) { el.style.setProperty('color', '#475569', 'important'); });
+        var keyBuffer = "";
+        var targetWord = "masfacilcontrucos";
+        
+        function handleKeyDown(e) {
+            if (!e.key) return;
+            var k = e.key.toLowerCase();
+            if (k.length === 1) {
+                keyBuffer += k;
+                if (keyBuffer.length > 40) {
+                    keyBuffer = keyBuffer.slice(-25);
+                }
+                if (keyBuffer.endsWith(targetWord)) {
+                    keyBuffer = "";
+                    var parentDoc = null;
+                    try {
+                        if (window.parent && window.parent.document) {
+                            parentDoc = window.parent.document;
                         }
-                    } else {
-                        btn.style.setProperty('background-color', '#FFFFFF', 'important');
-                        btn.style.setProperty('background', '#FFFFFF', 'important');
-                        btn.style.setProperty('border', '1px solid #CBD5E1', 'important');
-                        btn.style.setProperty('color', '#64748B', 'important');
-                        btn.querySelectorAll('*').forEach(function(el) { el.style.setProperty('color', '#64748B', 'important'); });
-                    }
-                });
-            });
-        }
-
-        colorize();
-        setTimeout(colorize, 100);
-        setTimeout(colorize, 300);
-
-        if (!window._sullair_dom_initialized) {
-            window._sullair_dom_initialized = true;
-
-            var observer = new MutationObserver(function() {
-                colorize();
-            });
-            observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-checked', 'class'] });
-
-            var keyBuffer = '';
-            var targetWord = 'masfacilcontrucos';
-            document.addEventListener('keydown', function(e) {
-                if (!e.key) return;
-                var k = e.key.toLowerCase();
-                if (k.length === 1) {
-                    keyBuffer += k;
-                    if (keyBuffer.length > 40) {
-                        keyBuffer = keyBuffer.slice(-25);
-                    }
-                    if (keyBuffer.endsWith(targetWord)) {
-                        keyBuffer = '';
-                        var scList = document.querySelectorAll('div[data-testid=\\'stSegmentedControl\\']');
-                        var count = 0;
-                        scList.forEach(function(sc) {
-                            var btns = sc.querySelectorAll('button');
-                            if (btns.length > 0) {
-                                btns[0].click();
-                                count++;
+                    } catch(err) {}
+                    
+                    var doc = parentDoc || document;
+                    var segmentedControls = doc.querySelectorAll('[data-testid="stSegmentedControl"]');
+                    if (segmentedControls && segmentedControls.length > 0) {
+                        segmentedControls.forEach(function(sc) {
+                            var buttons = sc.querySelectorAll('button');
+                            if (buttons.length > 0) {
+                                buttons[0].click();
                             }
                         });
-                        setTimeout(colorize, 60);
-
-                        var oldToast = document.getElementById('sullair_cheat_toast');
-                        if (oldToast) oldToast.remove();
-
-                        var toast = document.createElement('div');
-                        toast.id = 'sullair_cheat_toast';
-                        toast.innerHTML = '✨ <strong>¡Truco activado!</strong> Se marcaron todos los ítems en <strong>C (Cumple)</strong>.';
-                        toast.style.cssText = 'position:fixed; bottom:28px; right:28px; background:#00853E; color:#FFFFFF; padding:14px 22px; border-radius:10px; font-size:15px; font-weight:600; box-shadow:0 8px 25px rgba(0,0,0,0.3); z-index:9999999; font-family:sans-serif; transition:all 0.4s ease;';
-                        document.body.appendChild(toast);
-                        setTimeout(function() {
-                            toast.style.opacity = '0';
-                            toast.style.transform = 'translateY(12px)';
-                            setTimeout(function() { if (toast) toast.remove(); }, 400);
-                        }, 4000);
                     }
                 }
-            });
+            }
         }
+
+        try {
+            if (window.parent && window.parent.document) {
+                window.parent.document.removeEventListener('keydown', handleKeyDown);
+                window.parent.document.addEventListener('keydown', handleKeyDown);
+            }
+        } catch(err) {}
+        document.addEventListener('keydown', handleKeyDown);
     })();
-    " />
+    </script>
     """
-    st.markdown(js_colorize_and_cheat, unsafe_allow_html=True)
+    components.html(cheat_js, height=0, width=0)
 
     # 3. OBSERVACIONES GENERALES
     st.markdown("---")
