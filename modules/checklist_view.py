@@ -59,9 +59,9 @@ def render_pdf_download_block(pdf_bytes: bytes, filename: str, saved_path: str =
     """
     st.markdown(html_btn, unsafe_allow_html=True)
 
-    # Previsualización directa en pantalla
+    # Previsualización directa en pantalla (colapsada por defecto para ahorrar espacio)
     if show_preview:
-        with st.expander("👁️ Ver Vista Previa del Reporte FSSA 106 generado", expanded=True):
+        with st.expander("👁️ Ver Vista Previa del Reporte FSSA 106 generado", expanded=False):
             img_preview = get_pdf_preview_image(pdf_bytes)
             if img_preview:
                 st.image(img_preview, caption=f"Vista previa del documento: {clean_name}", use_container_width=True)
@@ -184,8 +184,39 @@ def render_checklist_view(user: dict):
     # PANTALLA DE CONFIRMACIÓN Y DESCARGA (Evita duplicaciones y confirma guardado)
     if st.session_state.get("last_submission"):
         sub = st.session_state["last_submission"]
-        st.markdown("### 🎉 ¡Inspección Registrada y Guardada con Éxito!")
-        
+
+        # Autoscroll suave hacia arriba de la pantalla al confirmar
+        scroll_to_top_js = """
+        <script>
+        (function() {
+            function smoothScrollTop() {
+                try {
+                    window.scrollTo({top: 0, left: 0, behavior: 'smooth'});
+                    document.documentElement.scrollTop = 0;
+                    document.body.scrollTop = 0;
+                    if (window.parent) {
+                        window.parent.scrollTo({top: 0, left: 0, behavior: 'smooth'});
+                        if (window.parent.document) {
+                            window.parent.document.documentElement.scrollTop = 0;
+                            window.parent.document.body.scrollTop = 0;
+                            var mainContainers = window.parent.document.querySelectorAll('[data-testid="stAppViewContainer"], section.main, .main .block-container');
+                            mainContainers.forEach(function(el) {
+                                el.scrollTo({top: 0, left: 0, behavior: 'smooth'});
+                                el.scrollTop = 0;
+                            });
+                        }
+                    }
+                } catch(e) {}
+            }
+            smoothScrollTop();
+            setTimeout(smoothScrollTop, 50);
+            setTimeout(smoothScrollTop, 200);
+            setTimeout(smoothScrollTop, 500);
+        })();
+        </script>
+        """
+        components.html(scroll_to_top_js, height=0, width=0)
+
         email_status_html = ""
         if sub.get("email_sent"):
             email_status_html = f"""<p style="margin: 0 0 8px 0; font-size: 0.95rem; color: #15803d;">
@@ -204,19 +235,24 @@ def render_checklist_view(user: dict):
             st.markdown(
                 f"""
                 <div style="background: #f0fdf4; border: 2px solid #86efac; padding: 22px; border-radius: 12px; margin-bottom: 20px;">
-                    <h3 style="margin: 0 0 12px 0; color: #166534;">📄 Reporte Oficial FSSA 106 Generado y Guardado</h3>
-                    <p style="margin: 0 0 8px 0; font-size: 1.05rem;">
-                        <strong>ID de Inspección:</strong> <code>{sub['id'][:8]}</code> | 
-                        <strong>Vehículo:</strong> <strong>{sub['interno']}</strong> ({sub['patente']}) | 
-                        <strong>Fecha:</strong> {sub['fecha']}
+                    <h3 style="margin: 0 0 10px 0; color: #166534;">🎉 ¡Inspección Registrada y Despachada con Éxito!</h3>
+                    <p style="margin: 0 0 12px 0; font-size: 1.05rem; color: #1e293b; font-weight: 500;">
+                        El documento oficial <strong>FSSA 106</strong> fue cargado y generado correctamente, enviado con éxito por correo electrónico, y puede ser consultado o descargado en cualquier momento desde la sección <strong>{'Mi Historial' if user.get('role') == 'comercial' else 'Historial de Flota'}</strong>.
                     </p>
-                    <p style="margin: 0 0 8px 0; font-size: 0.95rem; color: #374151;">
-                        <strong>Inspector:</strong> {sub.get('inspector', user.get('name'))} | 
-                        <strong>Resultado:</strong> <span style="color: {estado_color}; font-weight: 700;">{estado_label}</span>
-                    </p>
-                    {email_status_html}
+                    <div style="background-color: #ffffff; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 16px; margin-bottom: 12px;">
+                        <p style="margin: 0 0 6px 0; font-size: 0.95rem;">
+                            <strong>ID de Inspección:</strong> <code>{sub['id'][:8]}</code> | 
+                            <strong>Vehículo:</strong> <strong>{sub['interno']}</strong> ({sub['patente']}) | 
+                            <strong>Fecha:</strong> {sub['fecha']}
+                        </p>
+                        <p style="margin: 0 0 6px 0; font-size: 0.95rem; color: #374151;">
+                            <strong>Inspector:</strong> {sub.get('inspector', user.get('name'))} | 
+                            <strong>Resultado:</strong> <span style="color: {estado_color}; font-weight: 700;">{estado_label}</span>
+                        </p>
+                        {email_status_html}
+                    </div>
                     <p style="margin: 0; font-size: 0.88rem; color: #15803d;">
-                        💾 <strong>Base de Datos:</strong> El reporte quedó guardado en la nube Supabase y está disponible en la sección de Historial.
+                        💾 <strong>Base de Datos:</strong> El reporte quedó respaldado en la nube Supabase.
                     </p>
                 </div>
                 """,
@@ -387,13 +423,14 @@ def render_checklist_view(user: dict):
 
             c_act_v1, c_act_v2 = st.columns([2, 1])
             with c_act_v1:
+                assigned_km = int(assigned_v.get("km_actual") or 0)
                 km_val = st.number_input(
                     "Kilometraje Actual *",
-                    value=0,
-                    min_value=0,
+                    value=assigned_km,
+                    min_value=assigned_km,
                     step=100,
                     key=f"v_km_assigned_{form_ver}",
-                    help="Ingrese el kilometraje actual registrado en el odómetro."
+                    help=f"El kilometraje debe ser mayor o igual al último registrado ({assigned_km:,} km)." if assigned_km > 0 else "Ingrese el kilometraje actual registrado en el odómetro."
                 )
             with c_act_v2:
                 st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
@@ -484,7 +521,14 @@ def render_checklist_view(user: dict):
                 patente_val = st.text_input("Patente *", value=def_patente, key=f"v_pat_{form_ver}", placeholder="Ej: AE 452 CD")
                 modelo_val = st.text_input("Modelo", value=def_modelo, key=f"v_mod_{form_ver}", placeholder="Ej: Hilux 4x4 D/C")
             with c_v3:
-                km_val = st.number_input("Kilometraje Actual *", value=def_km, key=f"v_km_{form_ver}", min_value=0, step=100)
+                km_val = st.number_input(
+                    "Kilometraje Actual *",
+                    value=def_km,
+                    min_value=def_km,
+                    step=100,
+                    key=f"v_km_{form_ver}",
+                    help=f"El kilometraje debe ser mayor o igual al último registrado ({def_km:,} km)." if def_km > 0 else "Ingrese el kilometraje actual registrado en el odómetro."
+                )
 
             st.markdown("#### 📄 Documentación del Vehículo")
             col_d1, col_d2 = st.columns(2)
@@ -810,6 +854,15 @@ def render_checklist_view(user: dict):
         if veh_invalido:
             st.error("⚠️ Complete los datos obligatorios del vehículo (Interno, Patente y Marca) antes de continuar.")
             st.toast("⚠️ Complete los datos del vehículo.", icon="⚠️")
+            return
+
+        # Validación 1.1: Kilometraje >= último registrado
+        clean_pat = patente_val.strip().upper()
+        existing_veh = next((v for v in db.get_vehicles() if v["patente"].upper() == clean_pat), None)
+        last_km = int(existing_veh.get("km_actual") or 0) if existing_veh else 0
+        if int(km_val) < last_km:
+            st.error(f"⚠️ El kilometraje ingresado ({int(km_val):,} km) no puede ser menor al último kilometraje registrado ({last_km:,} km) para la unidad {interno_val} ({clean_pat}).")
+            st.toast(f"⚠️ Kilometraje menor al anterior ({last_km:,} km).", icon="⚠️")
             return
 
         # Validación 2: Todos los checks deben estar contestados

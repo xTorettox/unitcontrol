@@ -658,10 +658,18 @@ class DatabaseManager:
     # --- CONFIGURACIONES / SETTINGS & SMTP & DESTINATARIOS ---
     def get_setting(self, key: str, default: Optional[str] = None) -> Optional[str]:
         if self.use_supabase and self.supabase_client:
+            # 1. Intentar sullair_settings si la tabla existe
             try:
                 res = self.supabase_client.table("sullair_settings").select("value").eq("key", key).execute()
                 if res.data and len(res.data) > 0:
                     return res.data[0]["value"]
+            except Exception:
+                pass
+            # 2. Fallback a taller_config en Supabase
+            try:
+                res = self.supabase_client.table("taller_config").select("valor_texto").eq("nombre_clave", f"sullair_{key}").execute()
+                if res.data and len(res.data) > 0:
+                    return res.data[0]["valor_texto"]
             except Exception:
                 pass
         conn = sqlite3.connect(DB_FILE)
@@ -673,10 +681,20 @@ class DatabaseManager:
 
     def set_setting(self, key: str, value: str) -> None:
         if self.use_supabase and self.supabase_client:
+            # 1. Intentar sullair_settings
             try:
                 self.supabase_client.table("sullair_settings").upsert({"key": key, "value": value}).execute()
             except Exception:
                 pass
+            # 2. Guardar en taller_config en Supabase para persistencia garantizada en la nube
+            try:
+                existing = self.supabase_client.table("taller_config").select("id").eq("nombre_clave", f"sullair_{key}").execute()
+                if existing.data and len(existing.data) > 0:
+                    self.supabase_client.table("taller_config").update({"valor_texto": value}).eq("id", existing.data[0]["id"]).execute()
+                else:
+                    self.supabase_client.table("taller_config").insert({"nombre_clave": f"sullair_{key}", "valor_texto": value}).execute()
+            except Exception as e:
+                print(f"Supabase set_setting error: {e}")
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
         cursor.execute("INSERT OR REPLACE INTO sullair_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)", (key, value))
