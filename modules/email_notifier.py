@@ -218,7 +218,20 @@ def send_inspection_email(
 
                     {f'<p><strong>Observaciones:</strong> {inspection_data.get("observaciones")}</p>' if inspection_data.get('observaciones') else ''}
 
-                    <p style="margin-top: 20px; font-size: 0.9rem; color: #64748b;">
+                    <div style="background-color: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 16px; margin: 22px 0; text-align: center;">
+                        <p style="margin: 0 0 10px 0; font-size: 0.95rem; color: #166534; font-weight: 600;">
+                            Para visualizar el detalle, fotos y estadísticas, ingresar a la app a través del siguiente link:
+                        </p>
+                        <a href="https://control-vehicular.streamlit.app/" target="_blank"
+                           style="display: inline-block; background-color: #00853E; color: #ffffff !important; padding: 10px 22px; text-decoration: none !important; font-weight: bold; border-radius: 6px; font-size: 0.95rem; box-shadow: 0 2px 5px rgba(0,0,0,0.15);">
+                            🔗 Abrir Sistema de Control Vehicular
+                        </a>
+                        <p style="margin: 8px 0 0 0; font-size: 0.85rem;">
+                            <a href="https://control-vehicular.streamlit.app/" target="_blank" style="color: #00853E; text-decoration: underline;">https://control-vehicular.streamlit.app/</a>
+                        </p>
+                    </div>
+
+                    <p style="margin-top: 15px; font-size: 0.9rem; color: #64748b;">
                         📄 Se adjunta el documento oficial en formato PDF firmado digitalmente.
                     </p>
                 </div>
