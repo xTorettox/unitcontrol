@@ -23,99 +23,125 @@ DEFAULT_SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
 
 class DatabaseManager:
     def __init__(self, supabase_url: Optional[str] = None, supabase_key: Optional[str] = None):
-        self.supabase_url = supabase_url or os.environ.get("SUPABASE_URL", DEFAULT_SUPABASE_URL)
-        self.supabase_key = supabase_key or os.environ.get("SUPABASE_KEY", DEFAULT_SUPABASE_KEY)
+        url = supabase_url
+        key = supabase_key
+
+        if not url or not key:
+            try:
+                import streamlit as st
+                if hasattr(st, "secrets"):
+                    if "supabase" in st.secrets:
+                        sec = st.secrets["supabase"]
+                        url = url or sec.get("url") or sec.get("SUPABASE_URL")
+                        key = key or sec.get("key") or sec.get("SUPABASE_KEY")
+                    url = url or st.secrets.get("SUPABASE_URL")
+                    key = key or st.secrets.get("SUPABASE_KEY")
+            except Exception:
+                pass
+
+        url = url or os.environ.get("SUPABASE_URL")
+        key = key or os.environ.get("SUPABASE_KEY")
+
+        self.supabase_url = url or DEFAULT_SUPABASE_URL
+        self.supabase_key = key or DEFAULT_SUPABASE_KEY
         self.supabase_client: Optional[Client] = None
         self.use_supabase = False
         
         self._init_sqlite()
         self._try_init_supabase()
-        self._seed_default_data()
+        try:
+            self._seed_default_data()
+        except Exception as e:
+            print(f"Aviso seed default data: {e}")
 
     def _init_sqlite(self):
         """Inicializa la base de datos local SQLite con el esquema definido."""
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        cursor.executescript("""
-            CREATE TABLE IF NOT EXISTS sullair_vehicles (
-                id TEXT PRIMARY KEY,
-                interno TEXT NOT NULL,
-                patente TEXT UNIQUE NOT NULL,
-                marca TEXT NOT NULL,
-                modelo TEXT NOT NULL,
-                km_actual INTEGER DEFAULT 0,
-                vtv_vencimiento TEXT,
-                seguro_vencimiento TEXT,
-                seguro_poliza TEXT,
-                tarjeta_verde BOOLEAN DEFAULT 1,
-                manual BOOLEAN DEFAULT 1,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS sullair_users (
-                id TEXT PRIMARY KEY,
-                email TEXT UNIQUE NOT NULL,
-                name TEXT NOT NULL,
-                role TEXT NOT NULL DEFAULT 'comercial',
-                password_hash TEXT NOT NULL,
-                assigned_vehicle_id TEXT,
-                signature_png TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS sullair_inspections (
-                id TEXT PRIMARY KEY,
-                fecha TEXT NOT NULL,
-                mes_periodo TEXT NOT NULL,
-                user_id TEXT NOT NULL,
-                user_name TEXT NOT NULL,
-                vehicle_id TEXT,
-                interno TEXT NOT NULL,
-                patente TEXT NOT NULL,
-                marca TEXT NOT NULL,
-                modelo TEXT NOT NULL,
-                km INTEGER NOT NULL DEFAULT 0,
-                tarjeta_verde_si_no TEXT DEFAULT 'SI',
-                manual_si_no TEXT DEFAULT 'SI',
-                vtv_si_no TEXT DEFAULT 'SI',
-                vtv_vencimiento TEXT,
-                seguro_si_no TEXT DEFAULT 'SI',
-                seguro_vencimiento TEXT,
-                observaciones TEXT,
-                realizo_nombre TEXT,
-                realizo_firma_png TEXT,
-                responsable_sitio_nombre TEXT,
-                responsable_sitio_firma_png TEXT,
-                status TEXT DEFAULT 'pendiente_revision',
-                nc_count INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS sullair_inspection_items (
-                id TEXT PRIMARY KEY,
-                inspection_id TEXT NOT NULL,
-                section TEXT NOT NULL,
-                item_name TEXT NOT NULL,
-                status TEXT NOT NULL DEFAULT 'C',
-                has_photo BOOLEAN DEFAULT 0,
-                observation TEXT,
-                FOREIGN KEY (inspection_id) REFERENCES sullair_inspections(id) ON DELETE CASCADE
-            );
-            CREATE TABLE IF NOT EXISTS sullair_inspection_photos (
-                id TEXT PRIMARY KEY,
-                inspection_id TEXT NOT NULL,
-                item_name TEXT NOT NULL,
-                file_name TEXT NOT NULL,
-                image_base64 TEXT NOT NULL,
-                caption TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (inspection_id) REFERENCES sullair_inspections(id) ON DELETE CASCADE
-            );
-            CREATE TABLE IF NOT EXISTS sullair_settings (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
-        conn.commit()
-        conn.close()
+        try:
+            os.makedirs(os.path.dirname(DB_FILE), exist_ok=True)
+            conn = sqlite3.connect(DB_FILE)
+            cursor = conn.cursor()
+            cursor.executescript("""
+                CREATE TABLE IF NOT EXISTS sullair_vehicles (
+                    id TEXT PRIMARY KEY,
+                    interno TEXT NOT NULL,
+                    patente TEXT UNIQUE NOT NULL,
+                    marca TEXT NOT NULL,
+                    modelo TEXT NOT NULL,
+                    km_actual INTEGER DEFAULT 0,
+                    vtv_vencimiento TEXT,
+                    seguro_vencimiento TEXT,
+                    seguro_poliza TEXT,
+                    tarjeta_verde BOOLEAN DEFAULT 1,
+                    manual BOOLEAN DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE TABLE IF NOT EXISTS sullair_users (
+                    id TEXT PRIMARY KEY,
+                    email TEXT UNIQUE NOT NULL,
+                    name TEXT NOT NULL,
+                    role TEXT NOT NULL DEFAULT 'comercial',
+                    password_hash TEXT NOT NULL,
+                    assigned_vehicle_id TEXT,
+                    signature_png TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE TABLE IF NOT EXISTS sullair_inspections (
+                    id TEXT PRIMARY KEY,
+                    fecha TEXT NOT NULL,
+                    mes_periodo TEXT NOT NULL,
+                    user_id TEXT NOT NULL,
+                    user_name TEXT NOT NULL,
+                    vehicle_id TEXT,
+                    interno TEXT NOT NULL,
+                    patente TEXT NOT NULL,
+                    marca TEXT NOT NULL,
+                    modelo TEXT NOT NULL,
+                    km INTEGER NOT NULL DEFAULT 0,
+                    tarjeta_verde_si_no TEXT DEFAULT 'SI',
+                    manual_si_no TEXT DEFAULT 'SI',
+                    vtv_si_no TEXT DEFAULT 'SI',
+                    vtv_vencimiento TEXT,
+                    seguro_si_no TEXT DEFAULT 'SI',
+                    seguro_vencimiento TEXT,
+                    observaciones TEXT,
+                    realizo_nombre TEXT,
+                    realizo_firma_png TEXT,
+                    responsable_sitio_nombre TEXT,
+                    responsable_sitio_firma_png TEXT,
+                    status TEXT DEFAULT 'pendiente_revision',
+                    nc_count INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE TABLE IF NOT EXISTS sullair_inspection_items (
+                    id TEXT PRIMARY KEY,
+                    inspection_id TEXT NOT NULL,
+                    section TEXT NOT NULL,
+                    item_name TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'C',
+                    has_photo BOOLEAN DEFAULT 0,
+                    observation TEXT,
+                    FOREIGN KEY (inspection_id) REFERENCES sullair_inspections(id) ON DELETE CASCADE
+                );
+                CREATE TABLE IF NOT EXISTS sullair_inspection_photos (
+                    id TEXT PRIMARY KEY,
+                    inspection_id TEXT NOT NULL,
+                    item_name TEXT NOT NULL,
+                    file_name TEXT NOT NULL,
+                    image_base64 TEXT NOT NULL,
+                    caption TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (inspection_id) REFERENCES sullair_inspections(id) ON DELETE CASCADE
+                );
+                CREATE TABLE IF NOT EXISTS sullair_settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"Aviso init sqlite: {e}")
 
     def _try_init_supabase(self):
         """Prueba la conexión a Supabase y verifica si las tablas sullair_ existen."""
@@ -142,11 +168,14 @@ class DatabaseManager:
     def _seed_default_data(self):
         """Asegura únicamente las cuentas oficiales iniciales requeridas (clean slate)."""
         # 1. Limpiar usuarios y vehículos mock/demo antiguos de SQLite
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM sullair_users WHERE email IN ('comercial@sullair.com.ar', 'cass@sullair.com.ar', 'flota@sullair.com.ar', 'admin@sullair.com.ar', 'test@sullair.com.ar')")
-        conn.commit()
-        conn.close()
+        try:
+            conn = sqlite3.connect(DB_FILE)
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM sullair_users WHERE email IN ('comercial@sullair.com.ar', 'cass@sullair.com.ar', 'flota@sullair.com.ar', 'admin@sullair.com.ar', 'test@sullair.com.ar')")
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
 
         # 2. Asegurar las dos cuentas principales requeridas
         # - fcendra (admin, clave C4n1ch3r1426)

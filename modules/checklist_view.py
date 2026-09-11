@@ -185,37 +185,37 @@ def render_checklist_view(user: dict):
     if st.session_state.get("last_submission"):
         sub = st.session_state["last_submission"]
 
-        # Autoscroll suave hacia arriba de la pantalla al confirmar
-        scroll_to_top_js = """
-        <script>
-        (function() {
-            function smoothScrollTop() {
-                try {
-                    window.scrollTo({top: 0, left: 0, behavior: 'smooth'});
-                    document.documentElement.scrollTop = 0;
-                    document.body.scrollTop = 0;
-                    if (window.parent) {
-                        window.parent.scrollTo({top: 0, left: 0, behavior: 'smooth'});
-                        if (window.parent.document) {
-                            window.parent.document.documentElement.scrollTop = 0;
-                            window.parent.document.body.scrollTop = 0;
-                            var mainContainers = window.parent.document.querySelectorAll('[data-testid="stAppViewContainer"], section.main, .main .block-container');
-                            mainContainers.forEach(function(el) {
+        # Autoscroll directo e inmediato hacia arriba de la pantalla al confirmar
+        scroll_direct_html = """
+        <div id="top-anchor"></div>
+        <img src="data:image/svg+xml;utf8,<svg></svg>" style="display:none;" onerror="
+            (function() {
+                function runScroll() {
+                    try {
+                        window.scrollTo({top: 0, left: 0, behavior: 'smooth'});
+                        document.documentElement.scrollTop = 0;
+                        document.body.scrollTop = 0;
+                        var targets = document.querySelectorAll('[data-testid=&quot;stAppViewContainer&quot;], section.main, .main .block-container, [data-testid=&quot;stMain&quot;]');
+                        targets.forEach(function(el) {
+                            try {
                                 el.scrollTo({top: 0, left: 0, behavior: 'smooth'});
                                 el.scrollTop = 0;
-                            });
+                            } catch(err) {}
+                        });
+                        var topEl = document.getElementById('top-anchor');
+                        if (topEl) {
+                            topEl.scrollIntoView({behavior: 'smooth', block: 'start'});
                         }
-                    }
-                } catch(e) {}
-            }
-            smoothScrollTop();
-            setTimeout(smoothScrollTop, 50);
-            setTimeout(smoothScrollTop, 200);
-            setTimeout(smoothScrollTop, 500);
-        })();
-        </script>
+                    } catch(e) {}
+                }
+                runScroll();
+                setTimeout(runScroll, 60);
+                setTimeout(runScroll, 200);
+                setTimeout(runScroll, 500);
+            })();
+        ">
         """
-        components.html(scroll_to_top_js, height=0, width=0)
+        st.markdown(scroll_direct_html, unsafe_allow_html=True)
 
         email_status_html = ""
         if sub.get("email_sent"):

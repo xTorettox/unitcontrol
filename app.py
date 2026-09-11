@@ -1,5 +1,12 @@
-import streamlit as st
 import os
+import sys
+
+# Asegurar que el directorio raíz del proyecto esté en sys.path para compatibilidad con Streamlit Cloud / Linux
+_app_dir = os.path.dirname(os.path.abspath(__file__))
+if _app_dir not in sys.path:
+    sys.path.insert(0, _app_dir)
+
+import streamlit as st
 from PIL import Image
 
 # Configuración de página
@@ -11,7 +18,7 @@ st.set_page_config(
 )
 
 # Cargar estilos CSS personalizados
-css_path = os.path.join(os.path.dirname(__file__), "assets", "style.css")
+css_path = os.path.join(_app_dir, "assets", "style.css")
 if os.path.exists(css_path):
     with open(css_path, "r", encoding="utf-8") as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
